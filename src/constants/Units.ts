@@ -1,0 +1,1 @@
+export const UNITS = ['pieza', 'kg', 'litro', 'metro', 'paquete', 'caja', 'otro'] as const;

@@ -44,6 +44,20 @@ pub fn find_by_id(db: &Database, id: i64) -> Result<Option<Category>, String> {
     Ok(result)
 }
 
+pub fn find_by_name(db: &Database, name: &str) -> Result<Option<Category>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let result = conn.query_row("SELECT id, name, description, created_at FROM categories WHERE name = ?1", params![name], |row| {
+        Ok(Category {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            description: row.get(2)?,
+            created_at: row.get(3)?,
+        })
+    }).ok();
+    Ok(result)
+}
+
 pub fn create(db: &Database, name: &str, description: Option<&str>) -> Result<Category, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(

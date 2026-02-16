@@ -31,6 +31,13 @@ pub fn search_products(db: State<Database>, term: String) -> Result<Vec<Product>
 
 #[tauri::command]
 pub fn create_product(db: State<Database>, request: CreateProductRequest) -> Result<Product, String> {
+    if let Some(ref barcode) = request.barcode {
+        let existing_product = product_repo::find_by_barcode(&db, barcode)?;
+        if existing_product.is_some() {
+            return Err(format!("El producto con código de barras {} ya existe", barcode.to_string()));
+        }
+    }
+
     product_repo::create(
         &db,
         &request.name,
@@ -46,6 +53,13 @@ pub fn create_product(db: State<Database>, request: CreateProductRequest) -> Res
 
 #[tauri::command]
 pub fn update_product(db: State<Database>, request: UpdateProductRequest) -> Result<Product, String> {
+    if let Some(ref barcode) = request.barcode {
+        let existing_product = product_repo::find_by_barcode(&db, barcode)?;
+        if existing_product.is_some() && existing_product.unwrap().id != request.id { // si el producto existe y no es el mismo producto
+            return Err(format!("El producto con código de barras {} ya existe", barcode.to_string()));
+        }
+    }
+
     product_repo::update(
         &db,
         request.id,

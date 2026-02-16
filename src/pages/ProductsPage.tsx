@@ -1,36 +1,41 @@
-import { useState, useEffect } from 'react';
+import { Add, Delete, Edit } from '@mui/icons-material';
 import {
+  Alert,
   Box,
   Button,
-  Typography,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  MenuItem,
+  Paper,
+  Switch,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
-  MenuItem,
-  Alert,
-  Chip,
-  Switch,
+  Typography,
 } from '@mui/material';
-import { Add, Edit, Delete } from '@mui/icons-material';
-import { ProductService } from '../services/ProductService';
-import { CategoryService } from '../services/CategoryService';
-import type { Product, Category } from '../models';
+import { useEffect, useState } from 'react';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { UNITS } from '../constants/Units';
 import type { CreateProductDTO, UpdateProductDTO } from '../dto';
+import type { Category, Product } from '../models';
+import { CategoryService } from '../services/CategoryService';
+import { ProductService } from '../services/ProductService';
+import { cleanError } from '../utils/CleanError';
 
 export function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
   const [editing, setEditing] = useState<Product | null>(null);
   const [error, setError] = useState('');
   const [catOpen, setCatOpen] = useState(false);
@@ -60,10 +65,6 @@ export function ProductsPage() {
       setError(String(err));
     }
   };
-
-  useEffect(() => {
-    loadData();
-  }, []);
 
   const resetForm = () => {
     setForm({ name: '', description: '', barcode: '', price: '', unit: 'pieza', category_id: '', stock: '', min_stock: '' });
@@ -121,17 +122,33 @@ export function ProductsPage() {
       loadData();
     } catch (err) {
       setError(String(err));
+    } finally {
+      cleanError(setError);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('¿Eliminar este producto?')) return;
+  const handleDelete = (id: number) => {
+    setConfirmOpen(true);
+    setConfirmId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmId) return;
     try {
-      await ProductService.delete(id);
+      await ProductService.delete(confirmId);
       loadData();
     } catch (err) {
       setError(String(err));
+    } finally {
+      setConfirmOpen(false);
+      setConfirmId(null);
+      cleanError(setError);
     }
+  };
+
+  const handleCloseConfirm = () => {
+    setConfirmOpen(false);
+    setConfirmId(null);
   };
 
   const handleToggleActive = async (product: Product) => {
@@ -140,6 +157,8 @@ export function ProductsPage() {
       loadData();
     } catch (err) {
       setError(String(err));
+    } finally {
+      cleanError(setError);
     }
   };
 
@@ -152,10 +171,14 @@ export function ProductsPage() {
       loadData();
     } catch (err) {
       setError(String(err));
+    } finally {
+      cleanError(setError);
     }
   };
 
-  const units = ['pieza', 'kg', 'litro', 'metro', 'paquete', 'caja', 'otro'];
+  useEffect(() => {
+    loadData();
+  }, []);
 
   return (
     <Box>
@@ -233,7 +256,7 @@ export function ProductsPage() {
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField label="Precio" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required sx={{ flex: 1 }} inputProps={{ step: '0.01', min: '0' }} />
               <TextField select label="Unidad" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} sx={{ flex: 1 }}>
-                {units.map((u) => <MenuItem key={u} value={u}>{u}</MenuItem>)}
+                {UNITS.map((u) => <MenuItem key={u} value={u}>{u}</MenuItem>)}
               </TextField>
             </Box>
             <TextField select label="Categoría" value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} fullWidth>
@@ -271,6 +294,14 @@ export function ProductsPage() {
           <Button variant="contained" onClick={handleAddCategory} disabled={!catName}>Crear</Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmModal
+        open={confirmOpen}
+        onClose={handleCloseConfirm}
+        onConfirm={handleConfirmDelete}
+        title="Confirmar eliminación"
+        message="¿Estás seguro de querer eliminar este producto?"
+      />
     </Box>
   );
 }
