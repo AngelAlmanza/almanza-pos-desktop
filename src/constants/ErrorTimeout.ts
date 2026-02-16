@@ -1,0 +1,1 @@
+export const ERROR_TIMEOUT = 5000 as const; // 5 seconds

@@ -1,40 +1,45 @@
-import { useState, useEffect } from 'react';
+import { Add, Delete, Edit } from '@mui/icons-material';
 import {
+  Alert,
   Box,
   Button,
-  Typography,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  MenuItem,
+  Paper,
+  Switch,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
-  MenuItem,
-  Alert,
-  Chip,
-  Switch,
+  Typography,
 } from '@mui/material';
-import { Add, Edit, Delete } from '@mui/icons-material';
-import { UserService } from '../services/UserService';
+import { useEffect, useState } from 'react';
+import { ConfirmModal } from '../components/ConfirmModal';
 import type { User } from '../models';
+import { UserService } from '../services/UserService';
+import { cleanError } from '../utils/CleanError';
+import { Roles } from '../types/Roles';
 
 export function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
   const [editing, setEditing] = useState<User | null>(null);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
     username: '',
     password: '',
     full_name: '',
-    role: 'cashier' as 'admin' | 'cashier',
+    role: 'cashier' as Roles,
   });
 
   const loadUsers = async () => {
@@ -45,10 +50,6 @@ export function UsersPage() {
       setError(String(err));
     }
   };
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
 
   const handleOpen = (user?: User) => {
     if (user) {
@@ -83,6 +84,8 @@ export function UsersPage() {
       loadUsers();
     } catch (err) {
       setError(String(err));
+    } finally {
+      cleanError(setError);
     }
   };
 
@@ -96,14 +99,32 @@ export function UsersPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Eliminar este usuario?')) return;
+    setConfirmOpen(true);
+    setConfirmId(id);
+  }
+
+  const handleConfirm = async () => {
+    if (!confirmId) return;
     try {
-      await UserService.delete(id);
+      await UserService.delete(confirmId);
       loadUsers();
     } catch (err) {
       setError(String(err));
+    } finally {
+      setConfirmOpen(false);
+      setConfirmId(null);
+      cleanError(setError);
     }
   };
+
+  const handleClose = () => {
+    setConfirmOpen(false);
+    setConfirmId(null);
+  }
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
   return (
     <Box>
@@ -190,7 +211,7 @@ export function UsersPage() {
               select
               label="Rol"
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value as 'admin' | 'cashier' })}
+              onChange={(e) => setForm({ ...form, role: e.target.value as Roles })}
               required
               fullWidth
             >
@@ -210,6 +231,13 @@ export function UsersPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      <ConfirmModal
+        open={confirmOpen}
+        onClose={handleClose}
+        onConfirm={handleConfirm}
+        title="Confirmar eliminación"
+        message="¿Estás seguro de querer eliminar este usuario?"
+      />
     </Box>
   );
 }
