@@ -1,33 +1,42 @@
-import { useState, useEffect } from 'react';
+import { AccountBalance, Close, OpenInNew, Print } from '@mui/icons-material';
 import {
+  Alert,
   Box,
   Button,
-  Typography,
+  Card,
+  CardContent,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Grid,
+  MenuItem,
+  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
-  Alert,
-  Chip,
-  Card,
-  CardContent,
-  Grid,
+  Typography,
 } from '@mui/material';
-import { AccountBalance, OpenInNew, Close, Print } from '@mui/icons-material';
+import { DatePicker } from '@mui/x-date-pickers';
+import moment, { Moment } from 'moment';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import type { CashRegisterSession, CashRegisterSummary, User } from '../models';
 import { CashRegisterService } from '../services/CashRegisterService';
 import { UserService } from '../services/UserService';
-import type { CashRegisterSession, CashRegisterSummary, User } from '../models';
+import { formatCurrency } from '../utils/FormatCurrency';
 import { TicketPrinter } from '../utils/TicketPrinter';
-import { MenuItem } from '@mui/material';
+
+moment.locale('es');
+
+const getMonthStart = (): Moment => moment().startOf('month');
+const getMonthEnd = (): Moment => moment().endOf('month');
+
 
 export function CashRegisterPage() {
   const { user, isAdmin, cashRegisterSession, setCashRegisterSession } = useAuth();
@@ -40,6 +49,9 @@ export function CashRegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const [startDate, setStartDate] = useState<Moment>(getMonthStart);
+  const [endDate, setEndDate] = useState<Moment>(getMonthEnd);
+
   const [openForm, setOpenForm] = useState({
     user_id: user?.id?.toString() || '',
     opening_amount: '',
@@ -50,10 +62,21 @@ export function CashRegisterPage() {
     closing_amount: '',
   });
 
+  const loadSessions = async () => {
+    try {
+      const sessionsData = await CashRegisterService.getByDateRange({
+        start_date: startDate.format('YYYY-MM-DD') + ' 00:00:00',
+        end_date: endDate.format('YYYY-MM-DD') + ' 23:59:59',
+      });
+      setSessions(sessionsData);
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
   const loadData = async () => {
     try {
-      const sessionsData = await CashRegisterService.getAll();
-      setSessions(sessionsData);
+      await loadSessions();
 
       if (isAdmin) {
         const usersData = await UserService.getAll();
@@ -71,10 +94,6 @@ export function CashRegisterPage() {
       setError(String(err));
     }
   };
-
-  useEffect(() => {
-    loadData();
-  }, []);
 
   const handleOpenCashRegister = async () => {
     try {
@@ -131,6 +150,14 @@ export function CashRegisterPage() {
     }
   };
 
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    loadSessions();
+  }, [startDate, endDate]);
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -157,6 +184,23 @@ export function CashRegisterPage() {
         </Box>
       </Box>
 
+      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'flex-end', mb: 3 }}>
+        <DatePicker
+          label="Fecha inicio"
+          value={startDate}
+          onChange={(value) => setStartDate(value ?? getMonthStart())}
+          maxDate={endDate}
+          slotProps={{ textField: { size: 'small' } }}
+        />
+        <DatePicker
+          label="Fecha fin"
+          value={endDate}
+          onChange={(value) => setEndDate(value ?? getMonthEnd())}
+          minDate={startDate}
+          slotProps={{ textField: { size: 'small' } }}
+        />
+      </Box>
+
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
 
@@ -170,16 +214,16 @@ export function CashRegisterPage() {
               </Grid>
               <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="subtitle2" color="text.secondary">Fondo Inicial</Typography>
-                <Typography variant="h6">${cashRegisterSession.opening_amount.toFixed(2)}</Typography>
+                <Typography variant="h6">{formatCurrency(cashRegisterSession.opening_amount)}</Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="subtitle2" color="text.secondary">Abierta</Typography>
-                <Typography>{new Date(cashRegisterSession.opened_at).toLocaleString()}</Typography>
+                <Typography>{moment(cashRegisterSession.opened_at).format('DD/MM/YYYY hh:mm A')}</Typography>
               </Grid>
               {cashRegisterSession.exchange_rate && (
                 <Grid size={{ xs: 12, sm: 3 }}>
                   <Typography variant="subtitle2" color="text.secondary">T/C USD</Typography>
-                  <Typography variant="h6">${cashRegisterSession.exchange_rate.toFixed(2)}</Typography>
+                  <Typography variant="h6">{formatCurrency(cashRegisterSession.exchange_rate)}</Typography>
                 </Grid>
               )}
             </Grid>
@@ -207,11 +251,11 @@ export function CashRegisterPage() {
               <TableRow key={session.id} hover>
                 <TableCell>#{session.id}</TableCell>
                 <TableCell>{session.user_name}</TableCell>
-                <TableCell>{new Date(session.opened_at).toLocaleString()}</TableCell>
-                <TableCell>{session.closed_at ? new Date(session.closed_at).toLocaleString() : '-'}</TableCell>
-                <TableCell align="right">${session.opening_amount.toFixed(2)}</TableCell>
-                <TableCell align="right">{session.closing_amount != null ? `$${session.closing_amount.toFixed(2)}` : '-'}</TableCell>
-                <TableCell>{session.exchange_rate ? `$${session.exchange_rate.toFixed(2)}` : '-'}</TableCell>
+                <TableCell>{moment(session.opened_at).format('DD/MM/YYYY hh:mm A')}</TableCell>
+                <TableCell>{session.closed_at ? moment(session.closed_at).format('DD/MM/YYYY hh:mm A') : '-'}</TableCell>
+                <TableCell align="right">{formatCurrency(session.opening_amount)}</TableCell>
+                <TableCell align="right">{session.closing_amount != null ? formatCurrency(session.closing_amount) : '-'}</TableCell>
+                <TableCell>{session.exchange_rate ? formatCurrency(session.exchange_rate) : '-'}</TableCell>
                 <TableCell>
                   <Chip
                     label={session.status === 'open' ? 'Abierta' : 'Cerrada'}
@@ -260,7 +304,12 @@ export function CashRegisterPage() {
               value={openForm.opening_amount}
               onChange={(e) => setOpenForm({ ...openForm, opening_amount: e.target.value })}
               fullWidth
-              inputProps={{ step: '0.01', min: '0' }}
+              slotProps={{
+                htmlInput: {
+                  step: '0.01',
+                  min: '0.01',
+                }
+              }}
             />
             <TextField
               label="Tasa de cambio USD (opcional)"
@@ -268,7 +317,12 @@ export function CashRegisterPage() {
               value={openForm.exchange_rate}
               onChange={(e) => setOpenForm({ ...openForm, exchange_rate: e.target.value })}
               fullWidth
-              inputProps={{ step: '0.01', min: '0' }}
+              slotProps={{
+                htmlInput: {
+                  step: '0.01',
+                  min: '0.01',
+                }
+              }}
               helperText="Dejar vacío si no se requiere"
             />
           </Box>
@@ -296,7 +350,12 @@ export function CashRegisterPage() {
               onChange={(e) => setCloseForm({ closing_amount: e.target.value })}
               fullWidth
               autoFocus
-              inputProps={{ step: '0.01', min: '0' }}
+              slotProps={{
+                htmlInput: {
+                  step: '0.01',
+                  min: '0.01',
+                }
+              }}
             />
           </Box>
         </DialogContent>
@@ -319,7 +378,7 @@ export function CashRegisterPage() {
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="caption" color="text.secondary">Fondo Inicial</Typography>
-                      <Typography variant="h6">${summary.session.opening_amount.toFixed(2)}</Typography>
+                      <Typography variant="h6">{formatCurrency(summary.session.opening_amount)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -327,7 +386,7 @@ export function CashRegisterPage() {
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="caption" color="text.secondary">Total Ventas</Typography>
-                      <Typography variant="h6" color="primary">${summary.total_sales.toFixed(2)}</Typography>
+                      <Typography variant="h6" color="primary">{formatCurrency(summary.total_sales)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -343,7 +402,7 @@ export function CashRegisterPage() {
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="caption" color="text.secondary">Efectivo Esperado</Typography>
-                      <Typography variant="h6">${summary.expected_cash.toFixed(2)}</Typography>
+                      <Typography variant="h6">{formatCurrency(summary.expected_cash)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -353,7 +412,7 @@ export function CashRegisterPage() {
                       <Card variant="outlined">
                         <CardContent>
                           <Typography variant="caption" color="text.secondary">Efectivo en Caja</Typography>
-                          <Typography variant="h6">${summary.total_cash.toFixed(2)}</Typography>
+                          <Typography variant="h6">{formatCurrency(summary.total_cash)}</Typography>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -367,7 +426,7 @@ export function CashRegisterPage() {
                             variant="h6"
                             color={summary.difference >= 0 ? 'success.main' : 'error.main'}
                           >
-                            ${summary.difference.toFixed(2)}
+                            {formatCurrency(summary.difference)}
                           </Typography>
                         </CardContent>
                       </Card>

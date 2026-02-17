@@ -48,6 +48,23 @@ pub fn find_open_by_user(db: &Database, user_id: i64) -> Result<Option<CashRegis
     Ok(result)
 }
 
+pub fn find_by_date_range(db: &Database, start_date: &str, end_date: &str) -> Result<Vec<CashRegisterSession>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let query = format!(
+        "{} WHERE cr.opened_at >= ?1 AND ((cr.status = 'closed' AND cr.closed_at <= ?2) OR (cr.status = 'open' AND cr.opened_at <= ?2)) ORDER BY cr.id DESC",
+        SELECT_QUERY
+    );
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+
+    let sessions = stmt
+        .query_map(params![start_date, end_date], row_to_session)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(sessions)
+}
+
 pub fn find_any_open(db: &Database) -> Result<Option<CashRegisterSession>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let query = format!("{} WHERE cr.status = 'open' LIMIT 1", SELECT_QUERY);

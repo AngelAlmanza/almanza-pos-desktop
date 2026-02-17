@@ -37,3 +37,9 @@ pub struct CashRegisterSummary {
     pub expected_cash: f64,
     pub difference: f64,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct DateRangeRequest {
+    pub start_date: String,
+    pub end_date: String,
+}

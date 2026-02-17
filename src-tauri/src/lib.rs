@@ -51,6 +51,7 @@ pub fn run() {
             delete_product,
             // Cash Register
             get_cash_register_sessions,
+            get_cash_register_sessions_by_date_range,
             get_cash_register_session,
             get_open_cash_register,
             get_open_cash_register_by_user,
