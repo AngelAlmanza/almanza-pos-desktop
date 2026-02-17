@@ -122,7 +122,15 @@ pub fn find_by_session(db: &Database, session_id: i64) -> Result<Vec<Sale>, Stri
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    Ok(sales)
+    let mut result = Vec::new();
+    for mut sale in sales {
+        let items = find_sale_items_by_sale_id(&conn, sale.id)?;
+
+        sale.items = items;
+        result.push(sale);
+    }
+
+    Ok(result)
 }
 
 pub fn find_all(db: &Database) -> Result<Vec<Sale>, String> {
@@ -153,7 +161,39 @@ pub fn find_all(db: &Database) -> Result<Vec<Sale>, String> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    Ok(sales)
+    let mut result = Vec::new();
+    for mut sale in sales {
+        let items = find_sale_items_by_sale_id(&conn, sale.id)?;
+
+        sale.items = items;
+        result.push(sale);
+    }
+
+    Ok(result)
+}
+
+pub fn find_sale_items_by_sale_id(conn: &rusqlite::Connection, sale_id: i64) -> Result<Vec<SaleItem>, String> {
+    let mut item_stmt = conn
+        .prepare("SELECT id, sale_id, product_id, product_name, quantity, unit_price, subtotal FROM sale_items WHERE sale_id = ?1")
+        .map_err(|e| e.to_string())?;
+
+    let items = item_stmt
+        .query_map(params![sale_id], |row| {
+            Ok(SaleItem {
+                id: row.get(0)?,
+                    sale_id: row.get(1)?,
+                    product_id: row.get(2)?,
+                    product_name: row.get(3)?,
+                    quantity: row.get(4)?,
+                    unit_price: row.get(5)?,
+                    subtotal: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(items)
 }
 
 pub fn find_by_date_range(db: &Database, start_date: &str, end_date: &str) -> Result<Vec<Sale>, String> {
