@@ -1,11 +1,22 @@
-use crate::db::Database;
 use crate::db::repository::inventory_repo;
-use crate::models::inventory::{CreateInventoryAdjustmentRequest, InventoryAdjustment};
+use crate::db::Database;
+use crate::models::inventory::{
+    CreateInventoryAdjustmentRequest, GetInventoryAdjustmentsByDateRangeRequest,
+    InventoryAdjustment,
+};
 use tauri::State;
 
 #[tauri::command]
 pub fn get_inventory_adjustments(db: State<Database>) -> Result<Vec<InventoryAdjustment>, String> {
     inventory_repo::find_all(&db)
+}
+
+#[tauri::command]
+pub fn get_inventory_adjustments_by_date_range(
+    db: State<Database>,
+    request: GetInventoryAdjustmentsByDateRangeRequest,
+) -> Result<Vec<InventoryAdjustment>, String> {
+    inventory_repo::find_by_date_range(&db, &request.start_date, &request.end_date)
 }
 
 #[tauri::command]

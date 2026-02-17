@@ -1,31 +1,39 @@
-import { useState, useEffect } from 'react';
+import { Add, Inventory2 } from '@mui/icons-material';
 import {
+  Alert,
   Box,
   Button,
-  Typography,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
+  Paper,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
-  Alert,
-  Chip,
   Tabs,
-  Tab,
+  TextField,
+  Typography,
 } from '@mui/material';
-import { Add, Inventory2 } from '@mui/icons-material';
-import { ProductService } from '../services/ProductService';
-import { InventoryService } from '../services/InventoryService';
+import { DatePicker } from '@mui/x-date-pickers';
+import moment, { type Moment } from 'moment';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import type { Product, InventoryAdjustment } from '../models';
+import type { InventoryAdjustment, Product } from '../models';
+import { InventoryService } from '../services/InventoryService';
+import { ProductService } from '../services/ProductService';
+import { formatCurrency } from '../utils/FormatCurrency';
+
+moment.locale('es');
+
+const getMonthStart = (): Moment => moment().startOf('month');
+const getMonthEnd = (): Moment => moment().endOf('month');
 
 export function InventoryPage() {
   const { user } = useAuth();
@@ -36,6 +44,9 @@ export function InventoryPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const [startDate, setStartDate] = useState<Moment>(getMonthStart);
+  const [endDate, setEndDate] = useState<Moment>(getMonthEnd);
+
   const [form, setForm] = useState({
     product_id: '',
     adjustment_type: 'add',
@@ -43,22 +54,30 @@ export function InventoryPage() {
     reason: '',
   });
 
-  const loadData = async () => {
+  const loadProducts = async () => {
     try {
-      const [prods, adjs] = await Promise.all([
-        ProductService.getAll(),
-        InventoryService.getAll(),
-      ]);
+      const prods = await ProductService.getAll();
       setProducts(prods);
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
+  const loadAdjustments = async () => {
+    try {
+      const adjs = await InventoryService.getByDateRange({
+        start_date: startDate.format('YYYY-MM-DD') + ' 00:00:00',
+        end_date: endDate.format('YYYY-MM-DD') + ' 23:59:59',
+      });
       setAdjustments(adjs);
     } catch (err) {
       setError(String(err));
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const loadData = async () => {
+    await Promise.all([loadProducts(), loadAdjustments()]);
+  };
 
   const handleAdjustment = async () => {
     if (!user) return;
@@ -80,7 +99,28 @@ export function InventoryPage() {
     }
   };
 
+  const getTypeChip = (type: 'add' | 'positive' | 'negative') => {
+    switch (type) {
+      case 'add':
+        return 'Reabastecimiento';
+      case 'positive':
+        return 'Ajuste +';
+      case 'negative':
+        return 'Ajuste -';
+      default:
+        return '-';
+    }
+  };
+
   const lowStockProducts = products.filter(p => p.stock <= p.min_stock && p.active);
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  useEffect(() => {
+    loadAdjustments();
+  }, [startDate, endDate]);
 
   return (
     <Box>
@@ -100,11 +140,29 @@ export function InventoryPage() {
         </Alert>
       )}
 
-      <Box sx={{ mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)}>
           <Tab label="Stock Actual" />
           <Tab label="Historial de Ajustes" />
         </Tabs>
+        {tab === 1 && (
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <DatePicker
+              label="Fecha inicio"
+              value={startDate}
+              onChange={(value) => setStartDate(value ?? getMonthStart())}
+              maxDate={endDate}
+              slotProps={{ textField: { size: 'small' } }}
+            />
+            <DatePicker
+              label="Fecha fin"
+              value={endDate}
+              onChange={(value) => setEndDate(value ?? getMonthEnd())}
+              minDate={startDate}
+              slotProps={{ textField: { size: 'small' } }}
+            />
+          </Box>
+        )}
       </Box>
 
       {tab === 0 && (
@@ -129,7 +187,7 @@ export function InventoryPage() {
                   <TableCell sx={{ fontWeight: 600 }}>{product.name}</TableCell>
                   <TableCell>{product.barcode || '-'}</TableCell>
                   <TableCell>{product.category_name || '-'}</TableCell>
-                  <TableCell align="right">${product.price.toFixed(2)}</TableCell>
+                  <TableCell align="right">{formatCurrency(product.price)}</TableCell>
                   <TableCell align="right">
                     <Chip
                       label={`${product.stock} ${product.unit}`}
@@ -170,11 +228,11 @@ export function InventoryPage() {
             <TableBody>
               {adjustments.map((adj) => (
                 <TableRow key={adj.id} hover>
-                  <TableCell>{new Date(adj.created_at).toLocaleString()}</TableCell>
+                  <TableCell>{moment(adj.created_at).format('DD/MM/YYYY hh:mm A')}</TableCell>
                   <TableCell>{adj.product_name}</TableCell>
                   <TableCell>
                     <Chip
-                      label={adj.adjustment_type === 'add' ? 'Agregar' : adj.adjustment_type === 'positive' ? 'Ajuste +' : 'Ajuste -'}
+                      label={getTypeChip(adj.adjustment_type)}
                       size="small"
                       color={adj.adjustment_type === 'negative' ? 'error' : 'success'}
                     />
@@ -232,7 +290,12 @@ export function InventoryPage() {
               onChange={(e) => setForm({ ...form, quantity: e.target.value })}
               required
               fullWidth
-              inputProps={{ step: '0.01', min: '0.01' }}
+              slotProps={{
+                htmlInput: {
+                  step: '0.01',
+                  min: '0.01',
+                }
+              }}
             />
             <TextField
               label="Razón del ajuste"

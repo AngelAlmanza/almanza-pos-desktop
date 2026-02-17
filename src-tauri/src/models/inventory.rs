@@ -23,3 +23,9 @@ pub struct CreateInventoryAdjustmentRequest {
     pub quantity: f64,
     pub reason: Option<String>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct GetInventoryAdjustmentsByDateRangeRequest {
+    pub start_date: String,
+    pub end_date: String,
+}

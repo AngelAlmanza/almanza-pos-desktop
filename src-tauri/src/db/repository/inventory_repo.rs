@@ -33,6 +33,35 @@ pub fn find_all(db: &Database) -> Result<Vec<InventoryAdjustment>, String> {
     Ok(adjustments)
 }
 
+pub fn find_by_date_range(db: &Database, start_date: &str, end_date: &str) -> Result<Vec<InventoryAdjustment>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT ia.id, ia.product_id, p.name, ia.user_id, u.full_name, ia.adjustment_type, ia.quantity, ia.previous_stock, ia.new_stock, ia.reason, ia.created_at FROM inventory_adjustments ia JOIN products p ON ia.product_id = p.id JOIN users u ON ia.user_id = u.id WHERE ia.created_at >= ?1 AND ia.created_at <= ?2 ORDER BY ia.id DESC")
+        .map_err(|e| e.to_string())?;
+
+    let adjustments = stmt
+        .query_map(params![start_date, end_date], |row| {
+            Ok(InventoryAdjustment {
+                id: row.get(0)?,
+                product_id: row.get(1)?,
+                product_name: row.get(2)?,
+                user_id: row.get(3)?,
+                user_name: row.get(4)?,
+                adjustment_type: row.get(5)?,
+                quantity: row.get(6)?,
+                previous_stock: row.get(7)?,
+                new_stock: row.get(8)?,
+                reason: row.get(9)?,
+                created_at: row.get(10)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(adjustments)
+}
+
 pub fn find_by_product(db: &Database, product_id: i64) -> Result<Vec<InventoryAdjustment>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn

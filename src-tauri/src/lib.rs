@@ -47,6 +47,7 @@ pub fn run() {
             search_products,
             create_product,
             update_product,
+            update_product_stock,
             delete_product,
             // Cash Register
             get_cash_register_sessions,
@@ -67,6 +68,7 @@ pub fn run() {
             cancel_sale,
             // Inventory
             get_inventory_adjustments,
+            get_inventory_adjustments_by_date_range,
             get_inventory_adjustments_by_product,
             create_inventory_adjustment,
         ])
