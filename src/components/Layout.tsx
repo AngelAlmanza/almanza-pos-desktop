@@ -1,35 +1,36 @@
-import { useState, useEffect } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box,
-  Drawer,
+  AccountBalance,
+  Assessment,
+  Category,
+  Inventory2,
+  Label,
+  Logout,
+  Menu as MenuIcon,
+  People,
+  Person,
+  PointOfSale,
+  ShoppingCart,
+} from '@mui/icons-material';
+import {
   AppBar,
-  Toolbar,
-  Typography,
+  Avatar,
+  Box,
+  Chip,
+  Divider,
+  Drawer,
+  IconButton,
   List,
   ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  IconButton,
-  Divider,
-  Chip,
-  Avatar,
   Menu,
   MenuItem,
+  Toolbar,
+  Typography,
 } from '@mui/material';
-import {
-  Menu as MenuIcon,
-  PointOfSale,
-  ShoppingCart,
-  Inventory2,
-  Category,
-  People,
-  Assessment,
-  AccountBalance,
-  Logout,
-  Person,
-} from '@mui/icons-material';
+import { useEffect, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const DRAWER_WIDTH = 260;
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { label: 'Punto de Venta', path: '/pos', icon: <PointOfSale /> },
   { label: 'Ventas', path: '/sales', icon: <ShoppingCart /> },
   { label: 'Productos', path: '/products', icon: <Category />, adminOnly: true },
+  { label: 'Categorías', path: '/categories', icon: <Label />, adminOnly: true },
   { label: 'Inventario', path: '/inventory', icon: <Inventory2 />, adminOnly: true },
   { label: 'Usuarios', path: '/users', icon: <People />, adminOnly: true },
   { label: 'Cortes de Caja', path: '/cash-register', icon: <AccountBalance /> },

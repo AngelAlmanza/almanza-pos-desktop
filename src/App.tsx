@@ -6,6 +6,7 @@ import { Layout } from './components/Layout';
 import { AuthProvider } from './context/AuthContext';
 import { AdminGuard, AuthGuard, GuestGuard } from './guards/AuthGuard';
 import { CashRegisterPage } from './pages/CashRegisterPage';
+import { CategoriesPage } from './pages/CategoriesPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { POSPage } from './pages/POSPage';
@@ -41,6 +42,7 @@ function App() {
                   {/* Admin-only routes */}
                   <Route element={<AdminGuard />}>
                     <Route path="/products" element={<ProductsPage />} />
+                    <Route path="/categories" element={<CategoriesPage />} />
                     <Route path="/inventory" element={<InventoryPage />} />
                     <Route path="/users" element={<UsersPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
