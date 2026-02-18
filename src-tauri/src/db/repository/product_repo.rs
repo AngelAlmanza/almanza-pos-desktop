@@ -169,6 +169,28 @@ pub fn update_stock(db: &Database, id: i64, new_stock: f64) -> Result<(), String
 
 pub fn delete(db: &Database, id: i64) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    // Una sola consulta con EXISTS para verificar todas las dependencias.
+    // sale_items usa idx_sale_items_sale (sale_id), pero product_id no tiene índice;
+    // inventory_adjustments usa idx_inventory_product (product_id).
+    // EXISTS cortocircuita al primer registro encontrado, lo que la hace óptima.
+    let (has_sale_items, has_inventory): (i32, i32) = conn
+        .query_row(
+            "SELECT
+                EXISTS(SELECT 1 FROM sale_items WHERE product_id = ?1 LIMIT 1),
+                EXISTS(SELECT 1 FROM inventory_adjustments WHERE product_id = ?1 LIMIT 1)",
+            params![id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|e| e.to_string())?;
+
+    if has_sale_items == 1 {
+        return Err("No se puede eliminar el producto porque está asociado a ventas registradas.".to_string());
+    }
+    if has_inventory == 1 {
+        return Err("No se puede eliminar el producto porque tiene ajustes de inventario registrados.".to_string());
+    }
+
     conn.execute("DELETE FROM products WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
     Ok(())

@@ -131,6 +131,30 @@ pub fn update(
 
 pub fn delete(db: &Database, id: i64) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    // Una sola consulta con EXISTS para verificar todas las dependencias.
+    // EXISTS cortocircuita al primer registro encontrado, lo que la hace óptima.
+    let (has_sessions, has_sales, has_inventory): (i32, i32, i32) = conn
+        .query_row(
+            "SELECT
+                EXISTS(SELECT 1 FROM cash_register_sessions WHERE user_id = ?1 LIMIT 1),
+                EXISTS(SELECT 1 FROM sales WHERE user_id = ?1 LIMIT 1),
+                EXISTS(SELECT 1 FROM inventory_adjustments WHERE user_id = ?1 LIMIT 1)",
+            params![id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(|e| e.to_string())?;
+
+    if has_sessions == 1 {
+        return Err("No se puede eliminar el usuario porque tiene sesiones de caja registradas.".to_string());
+    }
+    if has_sales == 1 {
+        return Err("No se puede eliminar el usuario porque tiene ventas registradas.".to_string());
+    }
+    if has_inventory == 1 {
+        return Err("No se puede eliminar el usuario porque tiene ajustes de inventario registrados.".to_string());
+    }
+
     conn.execute("DELETE FROM users WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
     Ok(())
