@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import type { Sale, SalesReport, TopProduct } from '../models';
+import { paymentMethodLabel } from './PaymentLabels';
 
 export class ReportGenerator {
   static generateSalesReportPDF(
@@ -112,7 +113,7 @@ export class ReportGenerator {
       'Fecha': new Date(s.created_at).toLocaleString(),
       'Cajero': s.user_name || '',
       'Total': s.total,
-      'Método de Pago': s.payment_method === 'cash' ? 'Efectivo' : s.payment_method,
+      'Método de Pago': paymentMethodLabel(s.payment_method),
       'Monto Pagado': s.payment_amount,
       'Cambio': s.change_amount,
       'Estado': s.status === 'completed' ? 'Completada' : 'Cancelada',

@@ -35,6 +35,7 @@ import { UserService } from '../services/UserService';
 import { cleanError } from '../utils/CleanError';
 import { TicketPrinter } from '../utils/TicketPrinter';
 import { formatCurrency } from '../utils/FormatCurrency';
+import { paymentMethodLabel } from '../utils/PaymentLabels';
 
 moment.locale('es');
 
@@ -286,7 +287,7 @@ export function SalesPage() {
                     <TableCell>{moment(sale.created_at).format('DD/MM/YYYY hh:mm A')}</TableCell>
                     <TableCell>{sale.user_name}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(sale.total)}</TableCell>
-                    <TableCell>{sale.payment_method === 'cash' ? 'Efectivo' : sale.payment_method}</TableCell>
+                    <TableCell>{paymentMethodLabel(sale.payment_method)}</TableCell>
                     <TableCell>
                       <Chip
                         label={sale.status === 'completed' ? 'Completada' : 'Cancelada'}

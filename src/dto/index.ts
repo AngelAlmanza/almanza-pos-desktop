@@ -66,7 +66,8 @@ export interface OpenCashRegisterDTO {
 
 export interface CloseCashRegisterDTO {
   session_id: number;
-  closing_amount: number;
+  closing_cash_mxn: number;
+  closing_cash_usd: number;
 }
 
 // Sale DTOs
@@ -78,8 +79,9 @@ export interface CreateSaleItemDTO {
 export interface CreateSaleDTO {
   cash_register_session_id: number;
   user_id: number;
-  payment_method: string;
-  payment_amount: number;
+  payment_cash_mxn: number;
+  payment_cash_usd: number;
+  payment_transfer: number;
   items: CreateSaleItemDTO[];
 }
 

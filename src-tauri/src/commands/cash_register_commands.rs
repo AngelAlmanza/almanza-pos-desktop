@@ -59,7 +59,12 @@ pub fn close_cash_register(
     db: State<Database>,
     request: CloseCashRegisterRequest,
 ) -> Result<CashRegisterSummary, String> {
-    cash_register_repo::close_session(&db, request.session_id, request.closing_amount)
+    cash_register_repo::close_session(
+        &db,
+        request.session_id,
+        request.closing_cash_mxn,
+        request.closing_cash_usd,
+    )
 }
 
 #[tauri::command]

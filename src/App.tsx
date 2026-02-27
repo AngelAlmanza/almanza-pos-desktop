@@ -1,9 +1,10 @@
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { AuthProvider } from './context/AuthContext';
+import { PosProvider } from './context/PosProvider';
 import { AdminGuard, AuthGuard, GuestGuard } from './guards/AuthGuard';
 import { CashRegisterPage } from './pages/CashRegisterPage';
 import { CategoriesPage } from './pages/CategoriesPage';
@@ -35,7 +36,9 @@ function App() {
               <Route element={<AuthGuard />}>
                 <Route element={<Layout />}>
                   <Route path="/" element={<Navigate to="/pos" replace />} />
-                  <Route path="/pos" element={<POSPage />} />
+                  <Route element={<PosProvider><Outlet /></PosProvider>}>
+                    <Route path="/pos" element={<POSPage />} />
+                  </Route>
                   <Route path="/sales" element={<SalesPage />} />
                   <Route path="/cash-register" element={<CashRegisterPage />} />
 

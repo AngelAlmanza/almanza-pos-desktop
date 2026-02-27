@@ -9,6 +9,10 @@ pub struct Sale {
     pub total: f64,
     pub payment_method: String,
     pub payment_amount: f64,
+    pub payment_cash_mxn: f64,
+    pub payment_cash_usd: f64,
+    pub payment_transfer: f64,
+    pub exchange_rate: Option<f64>,
     pub change_amount: f64,
     pub status: String,
     pub created_at: String,
@@ -30,8 +34,9 @@ pub struct SaleItem {
 pub struct CreateSaleRequest {
     pub cash_register_session_id: i64,
     pub user_id: i64,
-    pub payment_method: String,
-    pub payment_amount: f64,
+    pub payment_cash_mxn: f64,
+    pub payment_cash_usd: f64,
+    pub payment_transfer: f64,
     pub items: Vec<CreateSaleItemRequest>,
 }
 

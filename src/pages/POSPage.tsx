@@ -1,172 +1,94 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
 import {
+  Payment,
+  ShoppingCart
+} from '@mui/icons-material';
+import {
+  Alert,
   Box,
+  Button,
   Card,
   CardContent,
-  TextField,
-  Button,
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  Paper,
-  Divider,
-  Alert,
+  Checkbox,
   Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  Chip,
-  InputAdornment,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControlLabel,
+  TextField,
+  Typography
 } from '@mui/material';
-import {
-  Add,
-  Remove,
-  Delete,
-  Search,
-  ShoppingCart,
-  Payment,
-  QrCodeScanner,
-} from '@mui/icons-material';
+import { Decimal } from 'decimal.js';
+import { useMemo, useState } from 'react';
+import { PosSearchBar } from '../components/pos/PosSearchBar';
+import { SaleSummaryTable } from '../components/pos/SaleSummaryTable';
 import { useAuth } from '../context/AuthContext';
-import { ProductService } from '../services/ProductService';
+import { usePos } from '../context/PosProvider';
+import type { Sale } from '../models';
 import { SaleService } from '../services/SaleService';
-import type { Product, CartItem, Sale } from '../models';
 import { TicketPrinter } from '../utils/TicketPrinter';
 
 export function POSPage() {
   const { user, cashRegisterSession } = useAuth();
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [showSearch, setShowSearch] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState('');
+  const { cart, dispatch, error, setError } = usePos();
   const [showPayment, setShowPayment] = useState(false);
-  const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [lastSale, setLastSale] = useState<Sale | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const barcodeInputRef = useRef<HTMLInputElement>(null);
-  const [barcodeInput, setBarcodeInput] = useState('');
 
-  const total = cart.reduce((sum, item) => sum + item.subtotal, 0);
-  const changeAmount = paymentAmount ? parseFloat(paymentAmount) - total : 0;
+  const [useCashMxn, setUseCashMxn] = useState(true);
+  const [useCashUsd, setUseCashUsd] = useState(false);
+  const [useTransfer, setUseTransfer] = useState(false);
+  const [amountMxn, setAmountMxn] = useState('');
+  const [amountUsd, setAmountUsd] = useState('');
+  const [amountTransfer, setAmountTransfer] = useState('');
 
-  useEffect(() => {
-    if (barcodeInputRef.current) {
-      barcodeInputRef.current.focus();
-    }
-  }, [cart]);
+  const exchangeRate = useMemo(
+    () => cashRegisterSession?.exchange_rate ? new Decimal(cashRegisterSession.exchange_rate) : null,
+    [cashRegisterSession]
+  );
 
-  const handleBarcodeSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!barcodeInput.trim()) return;
+  const total = useMemo(
+    () => cart.reduce((sum, item) => sum.plus(item.subtotal), new Decimal(0)),
+    [cart]
+  );
 
-    try {
-      const product = await ProductService.findByBarcode(barcodeInput.trim());
-      addToCart(product);
-      setBarcodeInput('');
-    } catch {
-      // Try searching by name/code
-      try {
-        const results = await ProductService.search(barcodeInput.trim());
-        if (results.length === 1) {
-          addToCart(results[0]);
-          setBarcodeInput('');
-        } else if (results.length > 1) {
-          setSearchResults(results);
-          setShowSearch(true);
-          setBarcodeInput('');
-        } else {
-          setError('Producto no encontrado');
-          setTimeout(() => setError(''), 3000);
-          setBarcodeInput('');
-        }
-      } catch {
-        setError('Producto no encontrado');
-        setTimeout(() => setError(''), 3000);
-        setBarcodeInput('');
-      }
-    }
-  }, [barcodeInput]);
-
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) return;
-    try {
-      const results = await ProductService.search(searchTerm);
-      setSearchResults(results);
-      setShowSearch(true);
-    } catch (err) {
-      setError(String(err));
-    }
+  const parseDec = (val: string): Decimal | null => {
+    if (!val) return null;
+    try { return new Decimal(val); } catch { return null; }
   };
 
-  const addToCart = (product: Product, quantity = 1) => {
-    setCart(prev => {
-      const existingIndex = prev.findIndex(item => item.product.id === product.id);
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        const newQty = updated[existingIndex].quantity + quantity;
-        if (newQty > product.stock) {
-          setError(`Stock insuficiente. Disponible: ${product.stock}`);
-          setTimeout(() => setError(''), 3000);
-          return prev;
-        }
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          quantity: newQty,
-          subtotal: product.price * newQty,
-        };
-        return updated;
-      }
-      if (quantity > product.stock) {
-        setError(`Stock insuficiente. Disponible: ${product.stock}`);
-        setTimeout(() => setError(''), 3000);
-        return prev;
-      }
-      return [...prev, { product, quantity, subtotal: product.price * quantity }];
-    });
-    setShowSearch(false);
-    setSearchTerm('');
+  const paymentMxn = useMemo(() => useCashMxn ? (parseDec(amountMxn) ?? new Decimal(0)) : new Decimal(0), [useCashMxn, amountMxn]);
+  const paymentUsd = useMemo(() => useCashUsd ? (parseDec(amountUsd) ?? new Decimal(0)) : new Decimal(0), [useCashUsd, amountUsd]);
+  const paymentTransfer = useMemo(() => useTransfer ? (parseDec(amountTransfer) ?? new Decimal(0)) : new Decimal(0), [useTransfer, amountTransfer]);
+
+  const totalPaid = useMemo(() => {
+    const mxn = paymentMxn;
+    const usdInMxn = exchangeRate ? paymentUsd.times(exchangeRate) : paymentUsd;
+    return mxn.plus(usdInMxn).plus(paymentTransfer);
+  }, [paymentMxn, paymentUsd, paymentTransfer, exchangeRate]);
+
+  const changeAmount = useMemo(() => totalPaid.minus(total), [totalPaid, total]);
+
+  const isPaymentSufficient = totalPaid.gte(total) && total.gt(0);
+
+  const resetPaymentForm = () => {
+    setUseCashMxn(true);
+    setUseCashUsd(false);
+    setUseTransfer(false);
+    setAmountMxn('');
+    setAmountUsd('');
+    setAmountTransfer('');
   };
 
-  const updateQuantity = (index: number, delta: number) => {
-    setCart(prev => {
-      const updated = [...prev];
-      const newQty = updated[index].quantity + delta;
-      if (newQty <= 0) {
-        return prev.filter((_, i) => i !== index);
-      }
-      if (newQty > updated[index].product.stock) {
-        setError(`Stock insuficiente. Disponible: ${updated[index].product.stock}`);
-        setTimeout(() => setError(''), 3000);
-        return prev;
-      }
-      updated[index] = {
-        ...updated[index],
-        quantity: newQty,
-        subtotal: updated[index].product.price * newQty,
-      };
-      return updated;
-    });
-  };
-
-  const removeFromCart = (index: number) => {
-    setCart(prev => prev.filter((_, i) => i !== index));
+  const openPaymentDialog = () => {
+    resetPaymentForm();
+    setAmountMxn(total.toFixed(2));
+    setShowPayment(true);
   };
 
   const handlePayment = async () => {
     if (!user || !cashRegisterSession) return;
-    const payment = parseFloat(paymentAmount);
-    if (isNaN(payment) || payment < total) {
+    if (!isPaymentSufficient) {
       setError('Monto de pago insuficiente');
       return;
     }
@@ -175,8 +97,9 @@ export function POSPage() {
       const sale = await SaleService.create({
         cash_register_session_id: cashRegisterSession.id,
         user_id: user.id,
-        payment_method: 'cash',
-        payment_amount: payment,
+        payment_cash_mxn: paymentMxn.toNumber(),
+        payment_cash_usd: paymentUsd.toNumber(),
+        payment_transfer: paymentTransfer.toNumber(),
         items: cart.map(item => ({
           product_id: item.product.id,
           quantity: item.quantity,
@@ -184,13 +107,12 @@ export function POSPage() {
       });
 
       setLastSale(sale);
-      setCart([]);
-      setPaymentAmount('');
+      dispatch({ type: 'CLEAR_CART' });
+      resetPaymentForm();
       setShowPayment(false);
       setSuccess(`Venta #${sale.id} completada. Cambio: $${sale.change_amount.toFixed(2)}`);
       setTimeout(() => setSuccess(''), 5000);
 
-      // Print ticket
       TicketPrinter.printSaleTicket(sale);
     } catch (err) {
       setError(String(err));
@@ -219,94 +141,8 @@ export function POSPage() {
         {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError('')}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setSuccess('')}>{success}</Alert>}
 
-        {/* Barcode Scanner Input */}
-        <Card sx={{ mb: 2 }}>
-          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-            <form onSubmit={handleBarcodeSubmit}>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Escanear código de barras o escribir código/nombre..."
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                inputRef={barcodeInputRef}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <QrCodeScanner color="primary" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => { setShowSearch(true); handleSearch(); }}>
-                        <Search />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Cart Table */}
-        <TableContainer component={Paper} sx={{ flex: 1, overflow: 'auto' }}>
-          <Table stickyHeader size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Producto</TableCell>
-                <TableCell align="center">Cant.</TableCell>
-                <TableCell align="right">P. Unit.</TableCell>
-                <TableCell align="right">Subtotal</TableCell>
-                <TableCell align="center" width={80}></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {cart.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                    Escanea o busca productos para agregarlos
-                  </TableCell>
-                </TableRow>
-              ) : (
-                cart.map((item, index) => (
-                  <TableRow key={item.product.id}>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600}>
-                        {item.product.name}
-                      </Typography>
-                      {item.product.barcode && (
-                        <Typography variant="caption" color="text.secondary">
-                          {item.product.barcode}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell align="center">
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                        <IconButton size="small" onClick={() => updateQuantity(index, -1)}>
-                          <Remove fontSize="small" />
-                        </IconButton>
-                        <Typography fontWeight={600}>{item.quantity}</Typography>
-                        <IconButton size="small" onClick={() => updateQuantity(index, 1)}>
-                          <Add fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">${item.product.price.toFixed(2)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      ${item.subtotal.toFixed(2)}
-                    </TableCell>
-                    <TableCell align="center">
-                      <IconButton size="small" color="error" onClick={() => removeFromCart(index)}>
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <PosSearchBar />
+        <SaleSummaryTable />
       </Box>
 
       {/* Right Panel - Summary */}
@@ -320,12 +156,14 @@ export function POSPage() {
           <Box sx={{ flex: 1 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
               <Typography color="text.secondary">Artículos:</Typography>
-              <Typography fontWeight={600}>{cart.reduce((sum, item) => sum + item.quantity, 0)}</Typography>
+              <Typography fontWeight={600}>
+                {cart.reduce((sum, item) => sum.plus(item.quantity), new Decimal(0)).toDecimalPlaces(3).toString()}
+              </Typography>
             </Box>
-            {cashRegisterSession.exchange_rate && (
+            {exchangeRate && (
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography color="text.secondary">T/C USD:</Typography>
-                <Typography fontWeight={600}>${cashRegisterSession.exchange_rate.toFixed(2)}</Typography>
+                <Typography fontWeight={600}>${exchangeRate.toFixed(2)}</Typography>
               </Box>
             )}
           </Box>
@@ -338,11 +176,11 @@ export function POSPage() {
             </Typography>
           </Box>
 
-          {cashRegisterSession.exchange_rate && total > 0 && (
+          {exchangeRate && total.gt(0) && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
               <Typography color="text.secondary">En USD:</Typography>
               <Typography fontWeight={600}>
-                ${(total / cashRegisterSession.exchange_rate).toFixed(2)} USD
+                ${total.div(exchangeRate).toFixed(2)} USD
               </Typography>
             </Box>
           )}
@@ -353,7 +191,7 @@ export function POSPage() {
             size="large"
             startIcon={<Payment />}
             disabled={cart.length === 0}
-            onClick={() => { setShowPayment(true); setPaymentAmount(total.toFixed(2)); }}
+            onClick={openPaymentDialog}
             sx={{ py: 1.5 }}
           >
             Cobrar
@@ -373,82 +211,114 @@ export function POSPage() {
         </CardContent>
       </Card>
 
-      {/* Search Dialog */}
-      <Dialog open={showSearch} onClose={() => setShowSearch(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Buscar Producto</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="Buscar por nombre o código..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            inputRef={searchInputRef}
-            sx={{ mb: 2, mt: 1 }}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton size="small" onClick={handleSearch}>
-                    <Search />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-          <List>
-            {searchResults.map((product) => (
-              <ListItem key={product.id} disablePadding>
-                <ListItemButton onClick={() => addToCart(product)}>
-                  <ListItemText
-                    primary={product.name}
-                    secondary={`$${product.price.toFixed(2)} | Stock: ${product.stock} ${product.unit}`}
-                  />
-                  {product.barcode && (
-                    <Chip label={product.barcode} size="small" variant="outlined" />
-                  )}
-                </ListItemButton>
-              </ListItem>
-            ))}
-            {searchResults.length === 0 && (
-              <Typography color="text.secondary" textAlign="center" sx={{ py: 2 }}>
-                No se encontraron productos
-              </Typography>
-            )}
-          </List>
-        </DialogContent>
-      </Dialog>
-
       {/* Payment Dialog */}
-      <Dialog open={showPayment} onClose={() => setShowPayment(false)} maxWidth="xs" fullWidth>
+      <Dialog open={showPayment} onClose={() => setShowPayment(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Cobrar Venta</DialogTitle>
         <DialogContent>
           <Box sx={{ textAlign: 'center', my: 2 }}>
             <Typography variant="h4" fontWeight={700} color="primary">
               ${total.toFixed(2)}
             </Typography>
-            <Typography color="text.secondary">Total a cobrar</Typography>
+            <Typography color="text.secondary">Total a cobrar (MXN)</Typography>
+            {exchangeRate && (
+              <Typography variant="body2" color="text.secondary">
+                ≈ ${total.div(exchangeRate).toFixed(2)} USD (T/C: ${exchangeRate.toFixed(2)})
+              </Typography>
+            )}
           </Box>
-          <TextField
-            fullWidth
-            label="Monto recibido"
-            type="number"
-            value={paymentAmount}
-            onChange={(e) => setPaymentAmount(e.target.value)}
-            sx={{ mb: 2 }}
-            autoFocus
-            inputProps={{ step: '0.01', min: '0' }}
-            onKeyDown={(e) => e.key === 'Enter' && handlePayment()}
-          />
-          {parseFloat(paymentAmount) >= total && (
-            <Alert severity="info" icon={false} sx={{ textAlign: 'center' }}>
+
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Métodos de pago</Typography>
+
+          {/* Cash MXN */}
+          <Box sx={{ mb: 2, p: 1.5, border: '1px solid', borderColor: useCashMxn ? 'primary.main' : 'divider', borderRadius: 1 }}>
+            <FormControlLabel
+              control={<Checkbox checked={useCashMxn} onChange={(e) => { setUseCashMxn(e.target.checked); if (!e.target.checked) setAmountMxn(''); }} />}
+              label="Efectivo MXN"
+            />
+            {useCashMxn && (
+              <TextField
+                fullWidth
+                label="Monto en pesos"
+                type="number"
+                value={amountMxn}
+                onChange={(e) => setAmountMxn(e.target.value)}
+                size="small"
+                autoFocus
+                slotProps={{ htmlInput: { step: '0.01', min: '0' } }}
+                onKeyDown={(e) => e.key === 'Enter' && isPaymentSufficient && handlePayment()}
+              />
+            )}
+          </Box>
+
+          {/* Cash USD */}
+          {exchangeRate && (
+            <Box sx={{ mb: 2, p: 1.5, border: '1px solid', borderColor: useCashUsd ? 'success.main' : 'divider', borderRadius: 1 }}>
+              <FormControlLabel
+                control={<Checkbox checked={useCashUsd} onChange={(e) => { setUseCashUsd(e.target.checked); if (!e.target.checked) setAmountUsd(''); }} />}
+                label="Efectivo USD"
+              />
+              {useCashUsd && (
+                <>
+                  <TextField
+                    fullWidth
+                    label="Monto en dólares"
+                    type="number"
+                    value={amountUsd}
+                    onChange={(e) => setAmountUsd(e.target.value)}
+                    size="small"
+                    slotProps={{ htmlInput: { step: '0.01', min: '0' } }}
+                    onKeyDown={(e) => e.key === 'Enter' && isPaymentSufficient && handlePayment()}
+                  />
+                  {parseDec(amountUsd)?.gt(0) && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                      ≈ ${parseDec(amountUsd)!.times(exchangeRate).toFixed(2)} MXN
+                    </Typography>
+                  )}
+                </>
+              )}
+            </Box>
+          )}
+
+          {/* Transfer */}
+          <Box sx={{ mb: 2, p: 1.5, border: '1px solid', borderColor: useTransfer ? 'info.main' : 'divider', borderRadius: 1 }}>
+            <FormControlLabel
+              control={<Checkbox checked={useTransfer} onChange={(e) => { setUseTransfer(e.target.checked); if (!e.target.checked) setAmountTransfer(''); }} />}
+              label="Transferencia"
+            />
+            {useTransfer && (
+              <TextField
+                fullWidth
+                label="Monto transferencia (MXN)"
+                type="number"
+                value={amountTransfer}
+                onChange={(e) => setAmountTransfer(e.target.value)}
+                size="small"
+                slotProps={{ htmlInput: { step: '0.01', min: '0' } }}
+                onKeyDown={(e) => e.key === 'Enter' && isPaymentSufficient && handlePayment()}
+              />
+            )}
+          </Box>
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* Payment summary */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography color="text.secondary">Total recibido (MXN):</Typography>
+            <Typography fontWeight={600}>${totalPaid.toFixed(2)}</Typography>
+          </Box>
+
+          {isPaymentSufficient && (
+            <Alert severity="info" icon={false} sx={{ textAlign: 'center', mt: 1 }}>
               <Typography variant="h5" fontWeight={700}>
                 Cambio: ${changeAmount.toFixed(2)}
               </Typography>
             </Alert>
           )}
-          {parseFloat(paymentAmount) < total && paymentAmount !== '' && (
-            <Alert severity="error">Monto insuficiente</Alert>
+          {totalPaid.gt(0) && !isPaymentSufficient && (
+            <Alert severity="error" sx={{ mt: 1 }}>
+              Monto insuficiente. Faltan: ${total.minus(totalPaid).toFixed(2)}
+            </Alert>
           )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -456,7 +326,7 @@ export function POSPage() {
           <Button
             variant="contained"
             onClick={handlePayment}
-            disabled={!paymentAmount || parseFloat(paymentAmount) < total}
+            disabled={!isPaymentSufficient}
           >
             Confirmar Pago
           </Button>

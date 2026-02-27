@@ -21,6 +21,7 @@ import {
 import { PictureAsPdf, TableChart, Assessment } from '@mui/icons-material';
 import { SaleService } from '../services/SaleService';
 import type { SalesReport, TopProduct } from '../models';
+import { paymentMethodLabel } from '../utils/PaymentLabels';
 import { ReportGenerator } from '../utils/ReportGenerator';
 
 export function ReportsPage() {
@@ -209,7 +210,7 @@ export function ReportsPage() {
                       <TableCell align="right" sx={{ fontWeight: 600 }}>
                         ${sale.total.toFixed(2)}
                       </TableCell>
-                      <TableCell>{sale.payment_method === 'cash' ? 'Efectivo' : sale.payment_method}</TableCell>
+                      <TableCell>{paymentMethodLabel(sale.payment_method)}</TableCell>
                       <TableCell>{sale.status === 'completed' ? 'Completada' : 'Cancelada'}</TableCell>
                     </TableRow>
                   ))}

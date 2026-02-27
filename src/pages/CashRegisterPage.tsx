@@ -37,7 +37,6 @@ moment.locale('es');
 const getMonthStart = (): Moment => moment().startOf('month');
 const getMonthEnd = (): Moment => moment().endOf('month');
 
-
 export function CashRegisterPage() {
   const { user, isAdmin, cashRegisterSession, setCashRegisterSession } = useAuth();
   const [sessions, setSessions] = useState<CashRegisterSession[]>([]);
@@ -49,8 +48,8 @@ export function CashRegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const [startDate, setStartDate] = useState<Moment>(getMonthStart);
-  const [endDate, setEndDate] = useState<Moment>(getMonthEnd);
+  const [startDate, setStartDate] = useState<Moment>(() => getMonthStart());
+  const [endDate, setEndDate] = useState<Moment>(() => getMonthEnd());
 
   const [openForm, setOpenForm] = useState({
     user_id: user?.id?.toString() || '',
@@ -59,7 +58,8 @@ export function CashRegisterPage() {
   });
 
   const [closeForm, setCloseForm] = useState({
-    closing_amount: '',
+    closing_cash_mxn: '',
+    closing_cash_usd: '',
   });
 
   const loadSessions = async () => {
@@ -83,7 +83,6 @@ export function CashRegisterPage() {
         setUsers(usersData.filter(u => u.active));
       }
 
-      // Check for open session for current user
       if (user) {
         const openSession = await CashRegisterService.getOpen();
         if (openSession && openSession.user_id === user.id) {
@@ -122,16 +121,16 @@ export function CashRegisterPage() {
     try {
       const result = await CashRegisterService.close({
         session_id: cashRegisterSession.id,
-        closing_amount: parseFloat(closeForm.closing_amount) || 0,
+        closing_cash_mxn: parseFloat(closeForm.closing_cash_mxn) || 0,
+        closing_cash_usd: parseFloat(closeForm.closing_cash_usd) || 0,
       });
 
       setSummary(result);
       setCashRegisterSession(null);
       setCloseDialog(false);
       setSummaryDialog(true);
-      setCloseForm({ closing_amount: '' });
+      setCloseForm({ closing_cash_mxn: '', closing_cash_usd: '' });
 
-      // Print closing ticket
       TicketPrinter.printCashRegisterCloseTicket(result);
 
       loadData();
@@ -299,7 +298,7 @@ export function CashRegisterPage() {
               <TextField label="Usuario" value={user?.full_name} disabled fullWidth />
             )}
             <TextField
-              label="Fondo inicial"
+              label="Fondo inicial (MXN)"
               type="number"
               value={openForm.opening_amount}
               onChange={(e) => setOpenForm({ ...openForm, opening_amount: e.target.value })}
@@ -323,7 +322,7 @@ export function CashRegisterPage() {
                   min: '0.01',
                 }
               }}
-              helperText="Dejar vacío si no se requiere"
+              helperText="Dejar vacío si no se aceptan dólares"
             />
           </Box>
         </DialogContent>
@@ -341,22 +340,38 @@ export function CashRegisterPage() {
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
             <Alert severity="info">
-              Cuenta el efectivo en caja e ingresa el monto total.
+              Cuenta el efectivo en caja e ingresa los montos por separado.
             </Alert>
             <TextField
-              label="Monto en caja"
+              label="Efectivo en caja (MXN)"
               type="number"
-              value={closeForm.closing_amount}
-              onChange={(e) => setCloseForm({ closing_amount: e.target.value })}
+              value={closeForm.closing_cash_mxn}
+              onChange={(e) => setCloseForm({ ...closeForm, closing_cash_mxn: e.target.value })}
               fullWidth
               autoFocus
               slotProps={{
                 htmlInput: {
                   step: '0.01',
-                  min: '0.01',
+                  min: '0',
                 }
               }}
             />
+            {cashRegisterSession?.exchange_rate && (
+              <TextField
+                label="Efectivo en caja (USD)"
+                type="number"
+                value={closeForm.closing_cash_usd}
+                onChange={(e) => setCloseForm({ ...closeForm, closing_cash_usd: e.target.value })}
+                fullWidth
+                slotProps={{
+                  htmlInput: {
+                    step: '0.01',
+                    min: '0',
+                  }
+                }}
+                helperText={`T/C: $${cashRegisterSession.exchange_rate.toFixed(2)}`}
+              />
+            )}
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -368,13 +383,14 @@ export function CashRegisterPage() {
       </Dialog>
 
       {/* Summary Dialog */}
-      <Dialog open={summaryDialog} onClose={() => setSummaryDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog open={summaryDialog} onClose={() => setSummaryDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>Resumen de Caja #{summary?.session.id}</DialogTitle>
         <DialogContent>
           {summary && (
             <Box sx={{ mt: 1 }}>
               <Grid container spacing={2}>
-                <Grid size={{ xs: 6 }}>
+                {/* Row 1: Basic info */}
+                <Grid size={{ xs: 6, md: 3 }}>
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="caption" color="text.secondary">Fondo Inicial</Typography>
@@ -382,15 +398,15 @@ export function CashRegisterPage() {
                     </CardContent>
                   </Card>
                 </Grid>
-                <Grid size={{ xs: 6 }}>
+                <Grid size={{ xs: 6, md: 3 }}>
                   <Card variant="outlined">
                     <CardContent>
-                      <Typography variant="caption" color="text.secondary">Total Ventas</Typography>
+                      <Typography variant="caption" color="text.secondary">Total Ventas (MXN)</Typography>
                       <Typography variant="h6" color="primary">{formatCurrency(summary.total_sales)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
-                <Grid size={{ xs: 6 }}>
+                <Grid size={{ xs: 6, md: 3 }}>
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="caption" color="text.secondary">Transacciones</Typography>
@@ -398,40 +414,128 @@ export function CashRegisterPage() {
                     </CardContent>
                   </Card>
                 </Grid>
-                <Grid size={{ xs: 6 }}>
+                <Grid size={{ xs: 6, md: 3 }}>
                   <Card variant="outlined">
                     <CardContent>
-                      <Typography variant="caption" color="text.secondary">Efectivo Esperado</Typography>
-                      <Typography variant="h6">{formatCurrency(summary.expected_cash)}</Typography>
+                      <Typography variant="caption" color="text.secondary">Cambio Entregado</Typography>
+                      <Typography variant="h6">{formatCurrency(summary.total_change_given)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
+
+                {/* Row 2: Sales breakdown by payment method */}
+                <Grid size={12}>
+                  <Typography variant="subtitle2" sx={{ mt: 1 }}>Desglose de Cobros</Typography>
+                </Grid>
+                <Grid size={{ xs: 6, md: 4 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="caption" color="text.secondary">Efectivo MXN cobrado</Typography>
+                      <Typography variant="h6">{formatCurrency(summary.sales_cash_mxn)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid size={{ xs: 6, md: 4 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="caption" color="text.secondary">Efectivo USD cobrado</Typography>
+                      <Typography variant="h6">${summary.sales_cash_usd.toFixed(2)} USD</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid size={{ xs: 6, md: 4 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="caption" color="text.secondary">Transferencias</Typography>
+                      <Typography variant="h6">{formatCurrency(summary.sales_transfer)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Row 3: Expected vs Actual */}
+                <Grid size={12}>
+                  <Typography variant="subtitle2" sx={{ mt: 1 }}>Efectivo Esperado vs Real</Typography>
+                </Grid>
+
+                <Grid size={{ xs: 6, md: 3 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="caption" color="text.secondary">Esperado MXN</Typography>
+                      <Typography variant="h6">{formatCurrency(summary.expected_cash_mxn)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid size={{ xs: 6, md: 3 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="caption" color="text.secondary">Esperado USD</Typography>
+                      <Typography variant="h6">${summary.expected_cash_usd.toFixed(2)} USD</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
                 {summary.session.status === 'closed' && (
                   <>
-                    <Grid size={{ xs: 6 }}>
+                    <Grid size={{ xs: 6, md: 3 }}>
                       <Card variant="outlined">
                         <CardContent>
-                          <Typography variant="caption" color="text.secondary">Efectivo en Caja</Typography>
-                          <Typography variant="h6">{formatCurrency(summary.total_cash)}</Typography>
+                          <Typography variant="caption" color="text.secondary">En Caja MXN</Typography>
+                          <Typography variant="h6">{formatCurrency(summary.actual_cash_mxn)}</Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid size={{ xs: 6, md: 3 }}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="caption" color="text.secondary">En Caja USD</Typography>
+                          <Typography variant="h6">${summary.actual_cash_usd.toFixed(2)} USD</Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+
+                    {/* Differences */}
+                    <Grid size={12}>
+                      <Typography variant="subtitle2" sx={{ mt: 1 }}>Diferencias</Typography>
+                    </Grid>
+                    <Grid size={{ xs: 6 }}>
+                      <Card variant="outlined" sx={{
+                        borderColor: summary.difference_mxn >= 0 ? 'success.main' : 'error.main',
+                      }}>
+                        <CardContent>
+                          <Typography variant="caption" color="text.secondary">Diferencia MXN</Typography>
+                          <Typography
+                            variant="h6"
+                            color={summary.difference_mxn >= 0 ? 'success.main' : 'error.main'}
+                          >
+                            {summary.difference_mxn >= 0 ? '+' : ''}{formatCurrency(summary.difference_mxn)}
+                          </Typography>
                         </CardContent>
                       </Card>
                     </Grid>
                     <Grid size={{ xs: 6 }}>
                       <Card variant="outlined" sx={{
-                        borderColor: summary.difference >= 0 ? 'success.main' : 'error.main',
+                        borderColor: summary.difference_usd >= 0 ? 'success.main' : 'error.main',
                       }}>
                         <CardContent>
-                          <Typography variant="caption" color="text.secondary">Diferencia</Typography>
+                          <Typography variant="caption" color="text.secondary">Diferencia USD</Typography>
                           <Typography
                             variant="h6"
-                            color={summary.difference >= 0 ? 'success.main' : 'error.main'}
+                            color={summary.difference_usd >= 0 ? 'success.main' : 'error.main'}
                           >
-                            {formatCurrency(summary.difference)}
+                            {summary.difference_usd >= 0 ? '+' : ''}${summary.difference_usd.toFixed(2)} USD
                           </Typography>
                         </CardContent>
                       </Card>
                     </Grid>
                   </>
+                )}
+
+                {summary.session.exchange_rate && (
+                  <Grid size={12}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Tipo de cambio de la sesión: ${summary.session.exchange_rate.toFixed(2)} MXN/USD
+                    </Typography>
+                  </Grid>
                 )}
               </Grid>
             </Box>

@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod models;
+mod utils;
 
 use tauri::Manager;
 use commands::auth_commands::*;

@@ -46,6 +46,8 @@ export interface CashRegisterSession {
   user_name: string | null;
   opening_amount: number;
   closing_amount: number | null;
+  closing_cash_mxn: number | null;
+  closing_cash_usd: number | null;
   exchange_rate: number | null;
   status: 'open' | 'closed';
   opened_at: string;
@@ -58,9 +60,16 @@ export interface CashRegisterSummary {
   session: CashRegisterSession;
   total_sales: number;
   total_transactions: number;
-  total_cash: number;
-  expected_cash: number;
-  difference: number;
+  sales_cash_mxn: number;
+  sales_cash_usd: number;
+  sales_transfer: number;
+  total_change_given: number;
+  expected_cash_mxn: number;
+  expected_cash_usd: number;
+  actual_cash_mxn: number;
+  actual_cash_usd: number;
+  difference_mxn: number;
+  difference_usd: number;
 }
 
 // Sale models
@@ -82,6 +91,10 @@ export interface Sale {
   total: number;
   payment_method: string;
   payment_amount: number;
+  payment_cash_mxn: number;
+  payment_cash_usd: number;
+  payment_transfer: number;
+  exchange_rate: number | null;
   change_amount: number;
   status: string;
   created_at: string;

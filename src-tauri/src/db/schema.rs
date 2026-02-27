@@ -43,6 +43,8 @@ pub fn initialize(db: &Database) -> Result<(), String> {
             user_id INTEGER NOT NULL REFERENCES users(id),
             opening_amount REAL NOT NULL DEFAULT 0,
             closing_amount REAL,
+            closing_cash_mxn REAL,
+            closing_cash_usd REAL,
             exchange_rate REAL,
             status TEXT NOT NULL CHECK(status IN ('open', 'closed')) DEFAULT 'open',
             opened_at TEXT DEFAULT (datetime('now', 'localtime')),
@@ -54,8 +56,12 @@ pub fn initialize(db: &Database) -> Result<(), String> {
             cash_register_session_id INTEGER NOT NULL REFERENCES cash_register_sessions(id),
             user_id INTEGER NOT NULL REFERENCES users(id),
             total REAL NOT NULL,
-            payment_method TEXT NOT NULL DEFAULT 'cash',
+            payment_method TEXT NOT NULL DEFAULT 'cash_mxn',
             payment_amount REAL NOT NULL,
+            payment_cash_mxn REAL NOT NULL DEFAULT 0,
+            payment_cash_usd REAL NOT NULL DEFAULT 0,
+            payment_transfer REAL NOT NULL DEFAULT 0,
+            exchange_rate REAL,
             change_amount REAL NOT NULL DEFAULT 0,
             status TEXT NOT NULL DEFAULT 'completed',
             created_at TEXT DEFAULT (datetime('now', 'localtime'))
@@ -92,8 +98,33 @@ pub fn initialize(db: &Database) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
-    // Seed default admin user if no users exist
+    run_migrations(&conn)?;
     seed_default_user(&conn)?;
+
+    Ok(())
+}
+
+fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
+    let migrations = [
+        "ALTER TABLE sales ADD COLUMN payment_cash_mxn REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE sales ADD COLUMN payment_cash_usd REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE sales ADD COLUMN payment_transfer REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE sales ADD COLUMN exchange_rate REAL",
+        "ALTER TABLE cash_register_sessions ADD COLUMN closing_cash_mxn REAL",
+        "ALTER TABLE cash_register_sessions ADD COLUMN closing_cash_usd REAL",
+    ];
+
+    for sql in &migrations {
+        match conn.execute(sql, []) {
+            Ok(_) => {},
+            Err(e) => {
+                let msg = e.to_string();
+                if !msg.contains("duplicate column name") {
+                    return Err(format!("Migration error: {}", msg));
+                }
+            }
+        }
+    }
 
     Ok(())
 }

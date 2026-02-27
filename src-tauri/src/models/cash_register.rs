@@ -7,8 +7,10 @@ pub struct CashRegisterSession {
     pub user_name: Option<String>,
     pub opening_amount: f64,
     pub closing_amount: Option<f64>,
+    pub closing_cash_mxn: Option<f64>,
+    pub closing_cash_usd: Option<f64>,
     pub exchange_rate: Option<f64>,
-    pub status: String, // "open" or "closed"
+    pub status: String,
     pub opened_at: String,
     pub closed_at: Option<String>,
     pub total_sales: Option<f64>,
@@ -25,7 +27,8 @@ pub struct OpenCashRegisterRequest {
 #[derive(Debug, Deserialize)]
 pub struct CloseCashRegisterRequest {
     pub session_id: i64,
-    pub closing_amount: f64,
+    pub closing_cash_mxn: f64,
+    pub closing_cash_usd: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,9 +36,16 @@ pub struct CashRegisterSummary {
     pub session: CashRegisterSession,
     pub total_sales: f64,
     pub total_transactions: i64,
-    pub total_cash: f64,
-    pub expected_cash: f64,
-    pub difference: f64,
+    pub sales_cash_mxn: f64,
+    pub sales_cash_usd: f64,
+    pub sales_transfer: f64,
+    pub total_change_given: f64,
+    pub expected_cash_mxn: f64,
+    pub expected_cash_usd: f64,
+    pub actual_cash_mxn: f64,
+    pub actual_cash_usd: f64,
+    pub difference_mxn: f64,
+    pub difference_usd: f64,
 }
 
 #[derive(Debug, Deserialize)]
