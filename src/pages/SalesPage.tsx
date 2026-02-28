@@ -55,8 +55,8 @@ export function SalesPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const [startDate, setStartDate] = useState(getMonthStart);
-  const [endDate, setEndDate] = useState(getMonthEnd);
+  const [startDate, setStartDate] = useState(() => getMonthStart());
+  const [endDate, setEndDate] = useState(() => getMonthEnd());
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [searchSaleId, setSearchSaleId] = useState('');
 
