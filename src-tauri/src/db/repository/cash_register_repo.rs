@@ -48,14 +48,26 @@ pub fn find_by_id(db: &Database, id: i64) -> Result<Option<CashRegisterSession>,
     Ok(result)
 }
 
-pub fn find_open_by_user(db: &Database, user_id: i64) -> Result<Option<CashRegisterSession>, String> {
+pub fn find_open_by_user(
+    db: &Database,
+    user_id: i64,
+) -> Result<Option<CashRegisterSession>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    let query = format!("{} WHERE cr.user_id = ?1 AND cr.status = 'open'", SELECT_QUERY);
-    let result = conn.query_row(&query, params![user_id], row_to_session).ok();
+    let query = format!(
+        "{} WHERE cr.user_id = ?1 AND cr.status = 'open'",
+        SELECT_QUERY
+    );
+    let result = conn
+        .query_row(&query, params![user_id], row_to_session)
+        .ok();
     Ok(result)
 }
 
-pub fn find_by_date_range(db: &Database, start_date: &str, end_date: &str) -> Result<Vec<CashRegisterSession>, String> {
+pub fn find_by_date_range(
+    db: &Database,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Vec<CashRegisterSession>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let query = format!(
         "{} WHERE cr.opened_at >= ?1 AND ((cr.status = 'closed' AND cr.closed_at <= ?2) OR (cr.status = 'open' AND cr.opened_at <= ?2)) ORDER BY cr.id DESC",
@@ -111,7 +123,10 @@ struct SessionSalesBreakdown {
     total_change_given: f64,
 }
 
-fn query_sales_breakdown(conn: &rusqlite::Connection, session_id: i64) -> Result<SessionSalesBreakdown, String> {
+fn query_sales_breakdown(
+    conn: &rusqlite::Connection,
+    session_id: i64,
+) -> Result<SessionSalesBreakdown, String> {
     let row = conn
         .query_row(
             "SELECT \
@@ -146,7 +161,10 @@ fn query_sales_breakdown(conn: &rusqlite::Connection, session_id: i64) -> Result
     })
 }
 
-fn build_summary(session: CashRegisterSession, breakdown: SessionSalesBreakdown) -> CashRegisterSummary {
+fn build_summary(
+    session: CashRegisterSession,
+    breakdown: SessionSalesBreakdown,
+) -> CashRegisterSummary {
     let actual_mxn = session.closing_cash_mxn.unwrap_or(0.0);
     let actual_usd = session.closing_cash_usd.unwrap_or(0.0);
 
@@ -186,7 +204,12 @@ pub fn close_session(
          closing_amount = ?1, closing_cash_mxn = ?2, closing_cash_usd = ?3, \
          closed_at = datetime('now', 'localtime') \
          WHERE id = ?4 AND status = 'open'",
-        params![closing_total, money::round2(closing_cash_mxn), money::round2(closing_cash_usd), session_id],
+        params![
+            closing_total,
+            money::round2(closing_cash_mxn),
+            money::round2(closing_cash_usd),
+            session_id
+        ],
     )
     .map_err(|e| e.to_string())?;
 

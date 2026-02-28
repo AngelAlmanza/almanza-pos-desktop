@@ -1,16 +1,21 @@
+import { downloadDir, join } from '@tauri-apps/api/path';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import type { Sale, SalesReport, TopProduct } from '../models';
 import { paymentMethodLabel } from './PaymentLabels';
 
+export type ReportFormat = 'pdf' | 'excel';
+
 export class ReportGenerator {
-  static generateSalesReportPDF(
+  static async generateSalesReportPDF(
     report: SalesReport,
     topProducts: TopProduct[],
     startDate: string,
     endDate: string
-  ): void {
+  ): Promise<string | null> {
     const doc = new jsPDF();
 
     // Title
@@ -103,10 +108,28 @@ export class ReportGenerator {
       );
     }
 
-    doc.save(`reporte_ventas_${startDate}_${endDate}.pdf`);
+    const filename = `reporte_ventas_${startDate}_${endDate}.pdf`;
+    const defaultDir = await downloadDir();
+    const suggestedPath = await join(defaultDir, filename);
+
+    const path = await save({
+      defaultPath: suggestedPath,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+
+    if (!path) return null;
+
+    const arrayBuffer = doc.output('arraybuffer');
+    const uint8Array = new Uint8Array(arrayBuffer);
+    await writeFile(path, uint8Array);
+    return path;
   }
 
-  static generateSalesExcel(sales: Sale[], startDate: string, endDate: string): void {
+  static async generateSalesExcel(
+    sales: Sale[],
+    startDate: string,
+    endDate: string
+  ): Promise<string | null> {
     // Main sales sheet
     const salesData = sales.map(s => ({
       'ID': s.id,
@@ -141,6 +164,20 @@ export class ReportGenerator {
     XLSX.utils.book_append_sheet(wb, ws1, 'Ventas');
     XLSX.utils.book_append_sheet(wb, ws2, 'Detalle');
 
-    XLSX.writeFile(wb, `ventas_${startDate}_${endDate}.xlsx`);
+    const filename = `ventas_${startDate}_${endDate}.xlsx`;
+    const defaultDir = await downloadDir();
+    const suggestedPath = await join(defaultDir, filename);
+
+    const path = await save({
+      defaultPath: suggestedPath,
+      filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+    });
+
+    if (!path) return null;
+
+    const arrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+    const uint8Array = new Uint8Array(arrayBuffer);
+    await writeFile(path, uint8Array);
+    return path;
   }
 }

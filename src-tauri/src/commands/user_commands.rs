@@ -1,5 +1,5 @@
-use crate::db::Database;
 use crate::db::repository::user_repo;
+use crate::db::Database;
 use crate::models::user::{CreateUserRequest, UpdateUserRequest, User};
 use tauri::State;
 
@@ -24,10 +24,16 @@ pub fn create_user(db: State<Database>, request: CreateUserRequest) -> Result<Us
         return Err(format!("El usuario {} ya existe", request.username));
     }
 
-    let password_hash = bcrypt::hash(&request.password, bcrypt::DEFAULT_COST)
-        .map_err(|e| e.to_string())?;
+    let password_hash =
+        bcrypt::hash(&request.password, bcrypt::DEFAULT_COST).map_err(|e| e.to_string())?;
 
-    user_repo::create(&db, &request.username, &password_hash, &request.full_name, &request.role)
+    user_repo::create(
+        &db,
+        &request.username,
+        &password_hash,
+        &request.full_name,
+        &request.role,
+    )
 }
 
 #[tauri::command]
@@ -40,7 +46,8 @@ pub fn update_user(db: State<Database>, request: UpdateUserRequest) -> Result<Us
 
     if let Some(ref username) = request.username {
         let existing_user = user_repo::find_by_username(&db, username)?;
-        if existing_user.is_some() && existing_user.unwrap().0.id != request.id { // si el usuario existe y no es el mismo usuario
+        if existing_user.is_some() && existing_user.unwrap().0.id != request.id {
+            // si el usuario existe y no es el mismo usuario
             return Err(format!("El usuario {} ya existe", username.to_string()));
         }
     }

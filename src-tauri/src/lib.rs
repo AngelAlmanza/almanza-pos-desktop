@@ -3,7 +3,6 @@ mod db;
 mod models;
 mod utils;
 
-use tauri::Manager;
 use commands::auth_commands::*;
 use commands::cash_register_commands::*;
 use commands::category_commands::*;
@@ -11,16 +10,21 @@ use commands::inventory_commands::*;
 use commands::product_commands::*;
 use commands::sale_commands::*;
 use commands::user_commands::*;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let db = db::Database::new(&app.handle()).map_err(|e| {
-                eprintln!("Failed to initialize database: {}", e);
-                e
-            }).expect("Failed to initialize database");
+            let db = db::Database::new(&app.handle())
+                .map_err(|e| {
+                    eprintln!("Failed to initialize database: {}", e);
+                    e
+                })
+                .expect("Failed to initialize database");
             app.manage(db);
             Ok(())
         })

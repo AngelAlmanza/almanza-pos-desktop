@@ -1,6 +1,6 @@
-pub mod user;
-pub mod product;
-pub mod category;
-pub mod sale;
 pub mod cash_register;
+pub mod category;
 pub mod inventory;
+pub mod product;
+pub mod sale;
+pub mod user;

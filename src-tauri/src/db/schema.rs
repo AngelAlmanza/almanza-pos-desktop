@@ -116,7 +116,7 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
 
     for sql in &migrations {
         match conn.execute(sql, []) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => {
                 let msg = e.to_string();
                 if !msg.contains("duplicate column name") {

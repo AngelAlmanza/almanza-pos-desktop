@@ -1,5 +1,5 @@
-use crate::db::Database;
 use crate::db::repository::category_repo;
+use crate::db::Database;
 use crate::models::category::{Category, CreateCategoryRequest, UpdateCategoryRequest};
 use tauri::State;
 
@@ -14,7 +14,10 @@ pub fn get_category(db: State<Database>, id: i64) -> Result<Category, String> {
 }
 
 #[tauri::command]
-pub fn create_category(db: State<Database>, request: CreateCategoryRequest) -> Result<Category, String> {
+pub fn create_category(
+    db: State<Database>,
+    request: CreateCategoryRequest,
+) -> Result<Category, String> {
     let existing_category = category_repo::find_by_name(&db, &request.name)?;
     if existing_category.is_some() {
         return Err(format!("La categoría {} ya existe", request.name));
@@ -24,10 +27,14 @@ pub fn create_category(db: State<Database>, request: CreateCategoryRequest) -> R
 }
 
 #[tauri::command]
-pub fn update_category(db: State<Database>, request: UpdateCategoryRequest) -> Result<Category, String> {
+pub fn update_category(
+    db: State<Database>,
+    request: UpdateCategoryRequest,
+) -> Result<Category, String> {
     if let Some(ref name) = request.name {
         let existing_category = category_repo::find_by_name(&db, name)?;
-        if existing_category.is_some() && existing_category.unwrap().id != request.id { // si la categoría existe y no es la misma categoría
+        if existing_category.is_some() && existing_category.unwrap().id != request.id {
+            // si la categoría existe y no es la misma categoría
             return Err(format!("La categoría {} ya existe", name.to_string()));
         }
     }

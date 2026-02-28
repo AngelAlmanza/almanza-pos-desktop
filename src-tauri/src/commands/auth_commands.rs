@@ -1,5 +1,5 @@
-use crate::db::Database;
 use crate::db::repository::user_repo;
+use crate::db::Database;
 use crate::models::user::{LoginRequest, LoginResponse, User};
 use tauri::State;
 
@@ -13,8 +13,8 @@ pub fn login(db: State<Database>, request: LoginRequest) -> Result<LoginResponse
                 return Err("Usuario desactivado".to_string());
             }
 
-            let valid = bcrypt::verify(&request.password, &password_hash)
-                .map_err(|e| e.to_string())?;
+            let valid =
+                bcrypt::verify(&request.password, &password_hash).map_err(|e| e.to_string())?;
 
             if !valid {
                 return Err("Contraseña incorrecta".to_string());
@@ -31,6 +31,5 @@ pub fn login(db: State<Database>, request: LoginRequest) -> Result<LoginResponse
 
 #[tauri::command]
 pub fn get_current_user(db: State<Database>, user_id: i64) -> Result<User, String> {
-    user_repo::find_by_id(&db, user_id)?
-        .ok_or_else(|| "Usuario no encontrado".to_string())
+    user_repo::find_by_id(&db, user_id)?.ok_or_else(|| "Usuario no encontrado".to_string())
 }

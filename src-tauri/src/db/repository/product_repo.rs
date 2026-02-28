@@ -60,7 +60,9 @@ pub fn find_by_id(db: &Database, id: i64) -> Result<Option<Product>, String> {
 pub fn find_by_barcode(db: &Database, barcode: &str) -> Result<Option<Product>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let query = format!("{} WHERE p.barcode = ?1 AND p.active = 1", SELECT_QUERY);
-    let result = conn.query_row(&query, params![barcode], row_to_product).ok();
+    let result = conn
+        .query_row(&query, params![barcode], row_to_product)
+        .ok();
     Ok(result)
 }
 
@@ -185,10 +187,16 @@ pub fn delete(db: &Database, id: i64) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     if has_sale_items == 1 {
-        return Err("No se puede eliminar el producto porque está asociado a ventas registradas.".to_string());
+        return Err(
+            "No se puede eliminar el producto porque está asociado a ventas registradas."
+                .to_string(),
+        );
     }
     if has_inventory == 1 {
-        return Err("No se puede eliminar el producto porque tiene ajustes de inventario registrados.".to_string());
+        return Err(
+            "No se puede eliminar el producto porque tiene ajustes de inventario registrados."
+                .to_string(),
+        );
     }
 
     conn.execute("DELETE FROM products WHERE id = ?1", params![id])

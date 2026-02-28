@@ -33,7 +33,11 @@ pub fn find_all(db: &Database) -> Result<Vec<InventoryAdjustment>, String> {
     Ok(adjustments)
 }
 
-pub fn find_by_date_range(db: &Database, start_date: &str, end_date: &str) -> Result<Vec<InventoryAdjustment>, String> {
+pub fn find_by_date_range(
+    db: &Database,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Vec<InventoryAdjustment>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT ia.id, ia.product_id, p.name, ia.user_id, u.full_name, ia.adjustment_type, ia.quantity, ia.previous_stock, ia.new_stock, ia.reason, ia.created_at FROM inventory_adjustments ia JOIN products p ON ia.product_id = p.id JOIN users u ON ia.user_id = u.id WHERE ia.created_at >= ?1 AND ia.created_at <= ?2 ORDER BY ia.id DESC")

@@ -78,7 +78,13 @@ pub fn find_by_username(db: &Database, username: &str) -> Result<Option<(User, S
     Ok(result)
 }
 
-pub fn create(db: &Database, username: &str, password_hash: &str, full_name: &str, role: &str) -> Result<User, String> {
+pub fn create(
+    db: &Database,
+    username: &str,
+    password_hash: &str,
+    full_name: &str,
+    role: &str,
+) -> Result<User, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO users (username, password_hash, full_name, role) VALUES (?1, ?2, ?3, ?4)",
@@ -116,13 +122,19 @@ pub fn update(
             .map_err(|e| e.to_string())?;
     }
     if let Some(val) = role {
-        conn.execute("UPDATE users SET role = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2", params![val, id])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE users SET role = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
+            params![val, id],
+        )
+        .map_err(|e| e.to_string())?;
     }
     if let Some(val) = active {
         let active_int = if val { 1 } else { 0 };
-        conn.execute("UPDATE users SET active = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2", params![active_int, id])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE users SET active = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
+            params![active_int, id],
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     drop(conn);
@@ -146,13 +158,19 @@ pub fn delete(db: &Database, id: i64) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     if has_sessions == 1 {
-        return Err("No se puede eliminar el usuario porque tiene sesiones de caja registradas.".to_string());
+        return Err(
+            "No se puede eliminar el usuario porque tiene sesiones de caja registradas."
+                .to_string(),
+        );
     }
     if has_sales == 1 {
         return Err("No se puede eliminar el usuario porque tiene ventas registradas.".to_string());
     }
     if has_inventory == 1 {
-        return Err("No se puede eliminar el usuario porque tiene ajustes de inventario registrados.".to_string());
+        return Err(
+            "No se puede eliminar el usuario porque tiene ajustes de inventario registrados."
+                .to_string(),
+        );
     }
 
     conn.execute("DELETE FROM users WHERE id = ?1", params![id])

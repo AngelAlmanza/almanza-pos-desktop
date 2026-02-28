@@ -1,9 +1,9 @@
-pub mod schema;
 pub mod repository;
+pub mod schema;
 
 use rusqlite::Connection;
-use std::sync::Mutex;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 pub struct Database {
     pub conn: Mutex<Connection>,

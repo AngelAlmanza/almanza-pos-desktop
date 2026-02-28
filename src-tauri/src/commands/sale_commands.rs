@@ -1,5 +1,5 @@
-use crate::db::Database;
 use crate::db::repository::{cash_register_repo, product_repo, sale_repo};
+use crate::db::Database;
 use crate::models::sale::{CreateSaleRequest, DateRangeRequest, Sale, SalesReport, TopProduct};
 use crate::utils::money;
 use tauri::State;
@@ -20,7 +20,9 @@ pub fn create_sale(db: State<Database>, request: CreateSaleRequest) -> Result<Sa
     let transfer = money::round2(request.payment_transfer);
 
     if cash_usd > 0.0 && session.exchange_rate.is_none() {
-        return Err("No se puede pagar con USD sin tipo de cambio configurado en la caja".to_string());
+        return Err(
+            "No se puede pagar con USD sin tipo de cambio configurado en la caja".to_string(),
+        );
     }
 
     let mut items: Vec<(i64, String, f64, f64, f64)> = Vec::new();
@@ -98,12 +100,18 @@ pub fn get_sales_by_session(db: State<Database>, session_id: i64) -> Result<Vec<
 }
 
 #[tauri::command]
-pub fn get_sales_by_date_range(db: State<Database>, request: DateRangeRequest) -> Result<Vec<Sale>, String> {
+pub fn get_sales_by_date_range(
+    db: State<Database>,
+    request: DateRangeRequest,
+) -> Result<Vec<Sale>, String> {
     sale_repo::find_by_date_range(&db, &request.start_date, &request.end_date)
 }
 
 #[tauri::command]
-pub fn get_sales_report(db: State<Database>, request: DateRangeRequest) -> Result<SalesReport, String> {
+pub fn get_sales_report(
+    db: State<Database>,
+    request: DateRangeRequest,
+) -> Result<SalesReport, String> {
     let sales = sale_repo::find_by_date_range(&db, &request.start_date, &request.end_date)?;
     let completed_sales: Vec<&Sale> = sales.iter().filter(|s| s.status == "completed").collect();
     let total_sales = money::round2(completed_sales.iter().map(|s| s.total).sum::<f64>());
