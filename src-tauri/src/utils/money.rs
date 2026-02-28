@@ -14,9 +14,9 @@ pub fn mul_money(a: f64, b: f64) -> f64 {
 }
 
 /// Sums monetary values with 2-decimal rounding.
-pub fn sum_money(values: &[f64]) -> f64 {
-    round2(values.iter().copied().sum::<f64>())
-}
+// pub fn sum_money(values: &[f64]) -> f64 {
+//     round2(values.iter().copied().sum::<f64>())
+// }
 
 /// Converts USD to MXN using the given exchange rate, rounded to 2 decimals.
 pub fn usd_to_mxn(usd: f64, exchange_rate: f64) -> f64 {
