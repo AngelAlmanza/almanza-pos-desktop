@@ -55,10 +55,7 @@ export function CategoriesPage() {
   const handleOpen = (category?: Category) => {
     if (category) {
       setEditing(category);
-      setForm({
-        name: category.name,
-        description: category.description || '',
-      });
+      setForm({ name: category.name, description: category.description || '' });
     } else {
       resetForm();
     }
@@ -120,15 +117,13 @@ export function CategoriesPage() {
     setConfirmId(null);
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5">Categorías</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>
+        <Button variant="contained" size="small" startIcon={<Add fontSize="small" />} onClick={() => handleOpen()}>
           Nueva Categoría
         </Button>
       </Box>
@@ -139,13 +134,13 @@ export function CategoriesPage() {
         </Alert>
       )}
 
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid rgba(26,32,53,0.10)' }}>
         <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell>Nombre</TableCell>
               <TableCell>Descripción</TableCell>
-              <TableCell>Fecha de creación</TableCell>
+              <TableCell>Fecha de Creación</TableCell>
               <TableCell align="center">Acciones</TableCell>
             </TableRow>
           </TableHead>
@@ -159,20 +154,20 @@ export function CategoriesPage() {
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" color="text.secondary">
-                    {category.description || '-'}
+                    {category.description || '—'}
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8125rem' }}>
                     {moment(category.created_at).format('DD/MM/YYYY')}
                   </Typography>
                 </TableCell>
-                <TableCell align="center">
-                  <IconButton size="small" onClick={() => handleOpen(category)}>
-                    <Edit fontSize="small" />
+                <TableCell align="center" sx={{ p: 0.5 }}>
+                  <IconButton size="small" onClick={() => handleOpen(category)} sx={{ color: 'text.secondary' }}>
+                    <Edit sx={{ fontSize: 16 }} />
                   </IconButton>
                   <IconButton size="small" color="error" onClick={() => handleDelete(category.id)}>
-                    <Delete fontSize="small" />
+                    <Delete sx={{ fontSize: 16 }} />
                   </IconButton>
                 </TableCell>
               </TableRow>
@@ -191,12 +186,13 @@ export function CategoriesPage() {
       <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
         <DialogTitle>{editing ? 'Editar Categoría' : 'Nueva Categoría'}</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 0.5 }}>
             <TextField
               label="Nombre"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               fullWidth
+              size="small"
               required
             />
             <TextField
@@ -204,13 +200,14 @@ export function CategoriesPage() {
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               fullWidth
+              size="small"
               multiline
               rows={3}
             />
           </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleClose}>Cancelar</Button>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={handleClose} color="inherit">Cancelar</Button>
           <Button variant="contained" onClick={handleSave} disabled={!form.name}>
             {editing ? 'Guardar' : 'Crear'}
           </Button>
@@ -222,7 +219,7 @@ export function CategoriesPage() {
         onClose={handleCloseConfirm}
         onConfirm={handleConfirmDelete}
         title="Confirmar eliminación"
-        message="¿Estás seguro de querer eliminar esta categoría? Si tiene productos asociados, se marcarán como sin categoría."
+        message="¿Estás seguro de querer eliminar esta categoría? Los productos asociados quedarán sin categoría."
       />
     </Box>
   );

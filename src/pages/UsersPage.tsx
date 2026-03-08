@@ -1,4 +1,4 @@
-import { Add, Delete, Edit } from '@mui/icons-material';
+import { Add, Delete, Edit } from "@mui/icons-material";
 import {
   Alert,
   Box,
@@ -20,13 +20,13 @@ import {
   TableRow,
   TextField,
   Typography,
-} from '@mui/material';
-import { useEffect, useState } from 'react';
-import { ConfirmModal } from '../components/ConfirmModal';
-import type { User } from '../models';
-import { UserService } from '../services/UserService';
-import { cleanError } from '../utils/CleanError';
-import { Roles } from '../types/Roles';
+} from "@mui/material";
+import { useEffect, useState } from "react";
+import { ConfirmModal } from "../components/ConfirmModal";
+import type { User } from "../models";
+import { UserService } from "../services/UserService";
+import { Roles } from "../types/Roles";
+import { cleanError } from "../utils/CleanError";
 
 export function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -34,12 +34,12 @@ export function UsersPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [editing, setEditing] = useState<User | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
-    username: '',
-    password: '',
-    full_name: '',
-    role: 'cashier' as Roles,
+    username: "",
+    password: "",
+    full_name: "",
+    role: "cashier" as Roles,
   });
 
   const loadUsers = async () => {
@@ -56,13 +56,13 @@ export function UsersPage() {
       setEditing(user);
       setForm({
         username: user.username,
-        password: '',
+        password: "",
         full_name: user.full_name,
         role: user.role,
       });
     } else {
       setEditing(null);
-      setForm({ username: '', password: '', full_name: '', role: 'cashier' });
+      setForm({ username: "", password: "", full_name: "", role: "cashier" });
     }
     setOpen(true);
   };
@@ -72,9 +72,11 @@ export function UsersPage() {
       if (editing) {
         await UserService.update({
           id: editing.id,
-          username: form.username !== editing.username ? form.username : undefined,
+          username:
+            form.username !== editing.username ? form.username : undefined,
           password: form.password || undefined,
-          full_name: form.full_name !== editing.full_name ? form.full_name : undefined,
+          full_name:
+            form.full_name !== editing.full_name ? form.full_name : undefined,
           role: form.role !== editing.role ? form.role : undefined,
         });
       } else {
@@ -101,7 +103,7 @@ export function UsersPage() {
   const handleDelete = async (id: number) => {
     setConfirmOpen(true);
     setConfirmId(id);
-  }
+  };
 
   const handleConfirm = async () => {
     if (!confirmId) return;
@@ -120,7 +122,7 @@ export function UsersPage() {
   const handleClose = () => {
     setConfirmOpen(false);
     setConfirmId(null);
-  }
+  };
 
   useEffect(() => {
     loadUsers();
@@ -128,16 +130,36 @@ export function UsersPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
         <Typography variant="h5">Usuarios</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<Add fontSize="small" />}
+          onClick={() => handleOpen()}
+        >
           Nuevo Usuario
         </Button>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+          {error}
+        </Alert>
+      )}
 
-      <TableContainer component={Paper}>
+      <TableContainer
+        component={Paper}
+        elevation={0}
+        sx={{ border: "1px solid rgba(26,32,53,0.10)" }}
+      >
         <Table>
           <TableHead>
             <TableRow>
@@ -153,14 +175,41 @@ export function UsersPage() {
           <TableBody>
             {users.map((user) => (
               <TableRow key={user.id} hover>
-                <TableCell>{user.id}</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>{user.username}</TableCell>
+                <TableCell
+                  sx={{
+                    color: "text.secondary",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {user.id}
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: 600,
+                    fontFamily: "monospace",
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  {user.username}
+                </TableCell>
                 <TableCell>{user.full_name}</TableCell>
                 <TableCell>
                   <Chip
-                    label={user.role === 'admin' ? 'Administrador' : 'Cajero'}
+                    label={user.role === "admin" ? "Admin" : "Cajero"}
                     size="small"
-                    color={user.role === 'admin' ? 'warning' : 'primary'}
+                    sx={
+                      user.role === "admin"
+                        ? {
+                            backgroundColor: "rgba(193,125,17,0.12)",
+                            color: "warning.dark",
+                            fontWeight: 600,
+                          }
+                        : {
+                            backgroundColor: "rgba(13,107,95,0.10)",
+                            color: "primary.dark",
+                            fontWeight: 500,
+                          }
+                    }
                   />
                 </TableCell>
                 <TableCell>
@@ -170,27 +219,64 @@ export function UsersPage() {
                     onChange={() => handleToggleActive(user)}
                   />
                 </TableCell>
-                <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                <TableCell align="center">
-                  <IconButton size="small" onClick={() => handleOpen(user)}><Edit fontSize="small" /></IconButton>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(user.id)}><Delete fontSize="small" /></IconButton>
+                <TableCell
+                  sx={{ color: "text.secondary", fontSize: "0.8125rem" }}
+                >
+                  {new Date(user.created_at).toLocaleDateString("es-MX")}
+                </TableCell>
+                <TableCell align="center" sx={{ p: 0.5 }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleOpen(user)}
+                    sx={{ color: "text.secondary" }}
+                  >
+                    <Edit sx={{ fontSize: 16 }} />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => handleDelete(user.id)}
+                  >
+                    <Delete sx={{ fontSize: 16 }} />
+                  </IconButton>
                 </TableCell>
               </TableRow>
             ))}
+            {users.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={7}
+                  align="center"
+                  sx={{ py: 4, color: "text.secondary" }}
+                >
+                  No hay usuarios registrados
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editing ? 'Editar Usuario' : 'Nuevo Usuario'}</DialogTitle>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {editing ? "Editar Usuario" : "Nuevo Usuario"}
+        </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Box
+            sx={{ display: "flex", flexDirection: "column", gap: 1.5, mt: 0.5 }}
+          >
             <TextField
               label="Nombre completo"
               value={form.full_name}
               onChange={(e) => setForm({ ...form, full_name: e.target.value })}
               required
               fullWidth
+              size="small"
             />
             <TextField
               label="Usuario"
@@ -198,39 +284,53 @@ export function UsersPage() {
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               required
               fullWidth
+              size="small"
             />
             <TextField
-              label={editing ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña'}
+              label={
+                editing
+                  ? "Nueva contraseña (dejar vacío para no cambiar)"
+                  : "Contraseña"
+              }
               type="password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               required={!editing}
               fullWidth
+              size="small"
             />
             <TextField
               select
               label="Rol"
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value as Roles })}
+              onChange={(e) =>
+                setForm({ ...form, role: e.target.value as Roles })
+              }
               required
               fullWidth
+              size="small"
             >
               <MenuItem value="admin">Administrador</MenuItem>
               <MenuItem value="cashier">Cajero</MenuItem>
             </TextField>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setOpen(false)}>Cancelar</Button>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={() => setOpen(false)} color="inherit">
+            Cancelar
+          </Button>
           <Button
             variant="contained"
             onClick={handleSave}
-            disabled={!form.username || !form.full_name || (!editing && !form.password)}
+            disabled={
+              !form.username || !form.full_name || (!editing && !form.password)
+            }
           >
-            {editing ? 'Guardar' : 'Crear'}
+            {editing ? "Guardar" : "Crear"}
           </Button>
         </DialogActions>
       </Dialog>
+
       <ConfirmModal
         open={confirmOpen}
         onClose={handleClose}

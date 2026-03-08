@@ -45,23 +45,46 @@ export function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #1565c0 0%, #0d47a1 50%, #00897b 100%)',
+        backgroundColor: '#12172a',
+        backgroundImage: 'radial-gradient(ellipse at 60% 20%, rgba(13,107,95,0.18) 0%, transparent 60%)',
       }}
     >
-      <Card sx={{ maxWidth: 420, width: '100%', mx: 2 }}>
+      <Card
+        sx={{
+          maxWidth: 400,
+          width: '100%',
+          mx: 2,
+          border: 'none',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.45)',
+        }}
+      >
         <CardContent sx={{ p: 4 }}>
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <PointOfSale sx={{ fontSize: 64, color: 'primary.main', mb: 1 }} />
-            <Typography variant="h4" fontWeight={700} color="primary">
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3.5 }}>
+            <Box
+              sx={{
+                width: 52,
+                height: 52,
+                borderRadius: 2,
+                backgroundColor: 'rgba(13,107,95,0.10)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mb: 2,
+                border: '1px solid rgba(13,107,95,0.20)',
+              }}
+            >
+              <PointOfSale sx={{ fontSize: 28, color: 'primary.main' }} />
+            </Box>
+            <Typography variant="h5" fontWeight={700} color="text.primary">
               Almanza POS
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               Inicia sesión para continuar
             </Typography>
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" sx={{ mb: 2.5 }}>
               {error}
             </Alert>
           )}
@@ -75,6 +98,7 @@ export function LoginPage() {
               margin="normal"
               autoFocus
               required
+              size="small"
             />
             <TextField
               fullWidth
@@ -84,12 +108,18 @@ export function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               margin="normal"
               required
+              size="small"
               slotProps={{
                 input: {
                   endAdornment: (
                     <InputAdornment position="end">
-                      <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
-                        {!showPassword ? <VisibilityOff /> : <Visibility />}
+                      <IconButton
+                        onClick={() => setShowPassword(!showPassword)}
+                        edge="end"
+                        size="small"
+                        tabIndex={-1}
+                      >
+                        {!showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                       </IconButton>
                     </InputAdornment>
                   ),
@@ -102,7 +132,7 @@ export function LoginPage() {
               variant="contained"
               size="large"
               disabled={loading}
-              sx={{ mt: 3, py: 1.5 }}
+              sx={{ mt: 3, py: 1.25 }}
             >
               {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>

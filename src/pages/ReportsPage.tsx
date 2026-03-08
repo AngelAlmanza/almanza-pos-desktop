@@ -7,7 +7,7 @@ import {
   PictureAsPdf,
   Receipt,
   TableChart,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 import {
   Alert,
   Box,
@@ -29,54 +29,58 @@ import {
   TableRow,
   Tabs,
   Typography,
-} from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers';
-import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
-import moment, { Moment } from 'moment';
-import { useState } from 'react';
-import type { SalesReport, TopProduct } from '../models';
-import { SaleService } from '../services/SaleService';
-import { formatCurrency } from '../utils/FormatCurrency';
-import { paymentMethodLabel } from '../utils/PaymentLabels';
-import { ReportGenerator } from '../utils/ReportGenerator';
+} from "@mui/material";
+import { DatePicker } from "@mui/x-date-pickers";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import moment, { Moment } from "moment";
+import { useState } from "react";
+import { MetricCard } from "../components/reports/MetricCard";
+import type { SalesReport, TopProduct } from "../models";
+import { SaleService } from "../services/SaleService";
+import { formatCurrency } from "../utils/FormatCurrency";
+import { paymentMethodLabel } from "../utils/PaymentLabels";
+import { ReportGenerator } from "../utils/ReportGenerator";
 
-moment.locale('es');
+moment.locale("es");
 
-const getDefaultStartDate = (): Moment => moment().subtract(1, 'month').startOf('month');
+const getDefaultStartDate = (): Moment =>
+  moment().subtract(1, "month").startOf("month");
 const getDefaultEndDate = (): Moment => moment();
 
 export function ReportsPage() {
   const [tab, setTab] = useState(0);
-  const [startDate, setStartDate] = useState<Moment>(() => getDefaultStartDate());
+  const [startDate, setStartDate] = useState<Moment>(() =>
+    getDefaultStartDate(),
+  );
   const [endDate, setEndDate] = useState<Moment>(() => getDefaultEndDate());
   const [report, setReport] = useState<SalesReport | null>(null);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     filePath: string;
-    format: 'pdf' | 'excel';
+    format: "pdf" | "excel";
   } | null>(null);
 
-  const isDateRangeValid = !endDate.isBefore(startDate, 'day');
+  const isDateRangeValid = !endDate.isBefore(startDate, "day");
 
   const loadReport = async () => {
     if (!isDateRangeValid) return;
     try {
       setLoading(true);
-      setError('');
+      setError("");
       const [reportData, topData] = await Promise.all([
         SaleService.getReport({
-          start_date: startDate.format('YYYY-MM-DD') + ' 00:00:00',
-          end_date: endDate.format('YYYY-MM-DD') + ' 23:59:59',
+          start_date: startDate.format("YYYY-MM-DD") + " 00:00:00",
+          end_date: endDate.format("YYYY-MM-DD") + " 23:59:59",
         }),
         SaleService.getTopProducts(
-          startDate.format('YYYY-MM-DD') + ' 00:00:00',
-          endDate.format('YYYY-MM-DD') + ' 23:59:59',
-          10
+          startDate.format("YYYY-MM-DD") + " 00:00:00",
+          endDate.format("YYYY-MM-DD") + " 23:59:59",
+          10,
         ),
       ]);
       setReport(reportData);
@@ -92,15 +96,15 @@ export function ReportsPage() {
     if (!report) return;
     try {
       setExportingPdf(true);
-      setError('');
+      setError("");
       const filePath = await ReportGenerator.generateSalesReportPDF(
         report,
         topProducts,
-        startDate.format('YYYY-MM-DD'),
-        endDate.format('YYYY-MM-DD')
+        startDate.format("YYYY-MM-DD"),
+        endDate.format("YYYY-MM-DD"),
       );
       if (filePath) {
-        setSnackbar({ open: true, filePath, format: 'pdf' });
+        setSnackbar({ open: true, filePath, format: "pdf" });
       }
     } catch (err) {
       setError(String(err));
@@ -113,14 +117,14 @@ export function ReportsPage() {
     if (!report) return;
     try {
       setExportingExcel(true);
-      setError('');
+      setError("");
       const filePath = await ReportGenerator.generateSalesExcel(
         report.sales,
-        startDate.format('YYYY-MM-DD'),
-        endDate.format('YYYY-MM-DD')
+        startDate.format("YYYY-MM-DD"),
+        endDate.format("YYYY-MM-DD"),
       );
       if (filePath) {
-        setSnackbar({ open: true, filePath, format: 'excel' });
+        setSnackbar({ open: true, filePath, format: "excel" });
       }
     } catch (err) {
       setError(String(err));
@@ -152,38 +156,39 @@ export function ReportsPage() {
   };
 
   const getFileName = (path: string) => {
-    const parts = path.replace(/\\/g, '/').split('/');
-    return parts[parts.length - 1] || 'reporte';
+    const parts = path.replace(/\\/g, "/").split("/");
+    return parts[parts.length - 1] || "reporte";
   };
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-        <Assessment sx={{ fontSize: 28, color: 'primary.main' }} />
-        <Typography variant="h5" fontWeight={600}>
-          Reportes
-        </Typography>
-      </Box>
+      <Typography variant="h5" sx={{ mb: 3 }}>
+        Reportes
+      </Typography>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
           {error}
         </Alert>
       )}
 
       {/* Date Range Filter */}
-      <Card sx={{ mb: 3, boxShadow: 2 }}>
-        <CardContent sx={{ py: 2.5 }}>
+      <Card sx={{ mb: 3 }}>
+        <CardContent sx={{ py: 2 }}>
           <Grid container spacing={2} alignItems="center">
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <DateRange sx={{ color: 'action.active' }} />
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <DateRange
+                  sx={{ color: "text.secondary", fontSize: 20, flexShrink: 0 }}
+                />
                 <DatePicker
                   label="Fecha inicio"
                   value={startDate}
-                  onChange={(value) => setStartDate(value ?? getDefaultStartDate())}
+                  onChange={(value) =>
+                    setStartDate(value ?? getDefaultStartDate())
+                  }
                   maxDate={endDate}
-                  slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                  slotProps={{ textField: { size: "small", fullWidth: true } }}
                 />
               </Box>
             </Grid>
@@ -193,56 +198,63 @@ export function ReportsPage() {
                 value={endDate}
                 onChange={(value) => setEndDate(value ?? getDefaultEndDate())}
                 minDate={startDate}
-                slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                slotProps={{ textField: { size: "small", fullWidth: true } }}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 12, md: 4 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Grid
+              size={{ xs: 12, sm: 12, md: 4 }}
+              sx={{ display: "flex", justifyContent: { md: "flex-end" } }}
+            >
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Button
                   variant="contained"
                   onClick={loadReport}
                   disabled={loading || !isDateRangeValid}
-                  startIcon={loading ? <CircularProgress size={18} color="inherit" /> : undefined}
+                  startIcon={
+                    loading ? (
+                      <CircularProgress size={16} color="inherit" />
+                    ) : undefined
+                  }
                 >
-                  {loading ? 'Cargando...' : 'Generar Reporte'}
+                  {loading ? "Cargando..." : "Generar Reporte"}
                 </Button>
                 <Button
                   variant="outlined"
                   startIcon={
                     exportingPdf ? (
-                      <CircularProgress size={18} color="inherit" />
+                      <CircularProgress size={16} color="inherit" />
                     ) : (
                       <PictureAsPdf />
                     )
                   }
-                  onClick={() => {
-                    handleExportPDF();
-                  }}
+                  onClick={handleExportPDF}
                   disabled={!report || exportingPdf || exportingExcel}
                 >
-                  {exportingPdf ? 'Generando...' : 'PDF'}
+                  {exportingPdf ? "Generando..." : "PDF"}
                 </Button>
                 <Button
                   variant="outlined"
                   startIcon={
                     exportingExcel ? (
-                      <CircularProgress size={18} color="inherit" />
+                      <CircularProgress size={16} color="inherit" />
                     ) : (
                       <TableChart />
                     )
                   }
-                  onClick={() => {
-                    handleExportExcel();
-                  }}
+                  onClick={handleExportExcel}
                   disabled={!report || exportingPdf || exportingExcel}
                 >
-                  {exportingExcel ? 'Generando...' : 'Excel'}
+                  {exportingExcel ? "Generando..." : "Excel"}
                 </Button>
               </Stack>
             </Grid>
           </Grid>
           {!isDateRangeValid && (
-            <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
+            <Typography
+              variant="caption"
+              color="error"
+              sx={{ mt: 1, display: "block" }}
+            >
               La fecha de fin no puede ser menor que la fecha de inicio
             </Typography>
           )}
@@ -251,50 +263,38 @@ export function ReportsPage() {
 
       {report && (
         <>
-          {/* Summary Cards */}
+          {/* Metric Cards */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <Card sx={{ boxShadow: 2, borderTop: 3, borderColor: 'primary.main' }}>
-                <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                  <Assessment sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-                  <Typography variant="h4" fontWeight={700} color="primary">
-                    {formatCurrency(report.total_sales)}
-                  </Typography>
-                  <Typography color="text.secondary" variant="body2">
-                    Total Ventas
-                  </Typography>
-                </CardContent>
-              </Card>
+              <MetricCard
+                icon={<Assessment sx={{ fontSize: 22, color: "#0d6b5f" }} />}
+                value={formatCurrency(report.total_sales)}
+                label="Total Ventas"
+                accentColor="#0d6b5f"
+                iconBg="rgba(13,107,95,0.10)"
+              />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <Card sx={{ boxShadow: 2, borderTop: 3, borderColor: 'secondary.main' }}>
-                <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                  <Receipt sx={{ fontSize: 40, color: 'secondary.main', mb: 1 }} />
-                  <Typography variant="h4" fontWeight={700} color="secondary.main">
-                    {report.total_transactions}
-                  </Typography>
-                  <Typography color="text.secondary" variant="body2">
-                    Transacciones
-                  </Typography>
-                </CardContent>
-              </Card>
+              <MetricCard
+                icon={<Receipt sx={{ fontSize: 22, color: "#c17d11" }} />}
+                value={String(report.total_transactions)}
+                label="Transacciones"
+                accentColor="#c17d11"
+                iconBg="rgba(193,125,17,0.10)"
+              />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <Card sx={{ boxShadow: 2, borderTop: 3, borderColor: 'success.main' }}>
-                <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                  <AttachMoney sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
-                  <Typography variant="h4" fontWeight={700} color="success.main">
-                    {formatCurrency(report.average_sale)}
-                  </Typography>
-                  <Typography color="text.secondary" variant="body2">
-                    Promedio por Venta
-                  </Typography>
-                </CardContent>
-              </Card>
+              <MetricCard
+                icon={<AttachMoney sx={{ fontSize: 22, color: "#2d6a4f" }} />}
+                value={formatCurrency(report.average_sale)}
+                label="Promedio por Venta"
+                accentColor="#2d6a4f"
+                iconBg="rgba(45,106,79,0.10)"
+              />
             </Grid>
           </Grid>
 
-          <Box sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Box sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
               <Tab label="Productos Más Vendidos" />
               <Tab label="Detalle de Ventas" />
@@ -302,38 +302,58 @@ export function ReportsPage() {
           </Box>
 
           {tab === 0 && (
-            <TableContainer component={Paper} sx={{ boxShadow: 2 }}>
+            <TableContainer
+              component={Paper}
+              elevation={0}
+              sx={{ border: "1px solid rgba(26,32,53,0.10)" }}
+            >
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'action.hover' }}>
-                    <TableCell>
-                      <strong>#</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Producto</strong>
-                    </TableCell>
-                    <TableCell align="right">
-                      <strong>Cantidad Vendida</strong>
-                    </TableCell>
-                    <TableCell align="right">
-                      <strong>Ingresos</strong>
-                    </TableCell>
+                  <TableRow>
+                    <TableCell>#</TableCell>
+                    <TableCell>Producto</TableCell>
+                    <TableCell align="right">Cantidad Vendida</TableCell>
+                    <TableCell align="right">Ingresos</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {topProducts.map((product, index) => (
                     <TableRow key={product.product_id} hover>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>{product.product_name}</TableCell>
-                      <TableCell align="right">{product.total_quantity}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      <TableCell
+                        sx={{
+                          color: "text.secondary",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {index + 1}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        {product.product_name}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{ fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {product.total_quantity}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          fontWeight: 600,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
                         {formatCurrency(product.total_revenue)}
                       </TableCell>
                     </TableRow>
                   ))}
                   {topProducts.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      <TableCell
+                        colSpan={4}
+                        align="center"
+                        sx={{ py: 4, color: "text.secondary" }}
+                      >
                         No hay datos en el rango seleccionado
                       </TableCell>
                     </TableRow>
@@ -344,44 +364,61 @@ export function ReportsPage() {
           )}
 
           {tab === 1 && (
-            <TableContainer component={Paper} sx={{ boxShadow: 2 }}>
+            <TableContainer
+              component={Paper}
+              elevation={0}
+              sx={{ border: "1px solid rgba(26,32,53,0.10)" }}
+            >
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'action.hover' }}>
-                    <TableCell>
-                      <strong>ID</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Fecha</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Cajero</strong>
-                    </TableCell>
-                    <TableCell align="right">
-                      <strong>Total</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Método</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Estado</strong>
-                    </TableCell>
+                  <TableRow>
+                    <TableCell>ID</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell>Cajero</TableCell>
+                    <TableCell align="right">Total</TableCell>
+                    <TableCell>Método</TableCell>
+                    <TableCell>Estado</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {report.sales.map((sale) => (
                     <TableRow key={sale.id} hover>
-                      <TableCell>#{sale.id}</TableCell>
+                      <TableCell
+                        sx={{
+                          color: "text.secondary",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        #{sale.id}
+                      </TableCell>
                       <TableCell>
-                        {moment(sale.created_at).format('DD/MM/YYYY hh:mm A')}
+                        {moment(sale.created_at).format("DD/MM/YYYY hh:mm A")}
                       </TableCell>
                       <TableCell>{sale.user_name}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          fontWeight: 600,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
                         {formatCurrency(sale.total)}
                       </TableCell>
-                      <TableCell>{paymentMethodLabel(sale.payment_method)}</TableCell>
                       <TableCell>
-                        {sale.status === 'completed' ? 'Completada' : 'Cancelada'}
+                        {paymentMethodLabel(sale.payment_method)}
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          color:
+                            sale.status === "completed"
+                              ? "success.main"
+                              : "error.main",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {sale.status === "completed"
+                          ? "Completada"
+                          : "Cancelada"}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -396,28 +433,28 @@ export function ReportsPage() {
         open={Boolean(snackbar?.open)}
         autoHideDuration={8000}
         onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         message={
           snackbar ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {snackbar.format === 'pdf' ? (
-                <PictureAsPdf color="action" />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              {snackbar.format === "pdf" ? (
+                <PictureAsPdf sx={{ fontSize: 18 }} />
               ) : (
-                <TableChart color="action" />
+                <TableChart sx={{ fontSize: 18 }} />
               )}
               <Typography variant="body2">
-                Reporte generado: {getFileName(snackbar.filePath)}
+                {getFileName(snackbar.filePath)}
               </Typography>
             </Box>
           ) : null
         }
         action={
           snackbar ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <Button
                 size="small"
                 color="primary"
-                startIcon={<OpenInNew />}
+                startIcon={<OpenInNew fontSize="small" />}
                 onClick={handleOpenFile}
               >
                 Abrir
@@ -428,7 +465,7 @@ export function ReportsPage() {
                 onClick={handleRevealInFolder}
                 title="Mostrar en carpeta"
               >
-                <FolderOpen />
+                <FolderOpen fontSize="small" />
               </IconButton>
             </Box>
           ) : null

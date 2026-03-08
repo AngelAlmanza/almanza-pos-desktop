@@ -1,4 +1,10 @@
-import { Cancel, ExpandLess, ExpandMore, Print } from "@mui/icons-material";
+import {
+  Cancel,
+  ExpandLess,
+  ExpandMore,
+  Print,
+  Refresh,
+} from "@mui/icons-material";
 import type { SelectChangeEvent } from "@mui/material";
 import {
   Alert,
@@ -34,19 +40,14 @@ import type { Sale, User } from "../models";
 import { SaleService } from "../services/SaleService";
 import { UserService } from "../services/UserService";
 import { cleanError } from "../utils/CleanError";
-import { TicketPrinter } from "../utils/TicketPrinter";
 import { formatCurrency } from "../utils/FormatCurrency";
 import { paymentMethodLabel } from "../utils/PaymentLabels";
+import { TicketPrinter } from "../utils/TicketPrinter";
 
 moment.locale("es");
 
-const getMonthStart = (): Moment => {
-  return moment().startOf("month");
-};
-
-const getMonthEnd = (): Moment => {
-  return moment().endOf("month");
-};
+const getMonthStart = (): Moment => moment().startOf("month");
+const getMonthEnd = (): Moment => moment().endOf("month");
 
 export function SalesPage() {
   const { isAdmin, cashRegisterSession } = useAuth();
@@ -84,7 +85,7 @@ export function SalesPage() {
   ) => {
     try {
       setLoading(true);
-      const apiPage = currentPage + 1; // MUI uses 0-based, backend uses 1-based
+      const apiPage = currentPage + 1;
       if (isAdmin) {
         const result = await SaleService.getByDateRange(
           {
@@ -192,15 +193,15 @@ export function SalesPage() {
   useEffect(() => {
     setPage(0);
     loadSales(0, rowsPerPage);
-  }, [startDate, endDate]); // this ensures that the sales are loaded when the date range changes
+  }, [startDate, endDate]);
 
   if (!isAdmin && !cashRegisterSession) {
     return (
       <Box sx={{ textAlign: "center", mt: 8 }}>
-        <Typography variant="h5" color="text.secondary">
-          No tienes acceso a las ventas
+        <Typography variant="h6" color="text.secondary" fontWeight={600}>
+          Sin acceso
         </Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           Debes tener una caja abierta o ser administrador.
         </Typography>
       </Box>
@@ -218,7 +219,12 @@ export function SalesPage() {
         }}
       >
         <Typography variant="h5">Ventas</Typography>
-        <Button variant="outlined" onClick={() => loadSales()}>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<Refresh fontSize="small" />}
+          onClick={() => loadSales()}
+        >
           Actualizar
         </Button>
       </Box>
@@ -228,7 +234,7 @@ export function SalesPage() {
           sx={{
             display: "flex",
             justifyContent: "flex-end",
-            gap: 2,
+            gap: 1.5,
             mb: 2,
             flexWrap: "wrap",
             alignItems: "center",
@@ -241,13 +247,8 @@ export function SalesPage() {
             onChange={(e) => setSearchSaleId(e.target.value)}
             size="small"
             type="number"
-            sx={{ width: 160 }}
-            slotProps={{
-              htmlInput: {
-                min: 1,
-                step: 1,
-              },
-            }}
+            sx={{ width: 140 }}
+            slotProps={{ htmlInput: { min: 1, step: 1 } }}
           />
           {isAdmin && (
             <>
@@ -256,24 +257,16 @@ export function SalesPage() {
                 value={startDate}
                 onChange={(value) => setStartDate(value ?? getMonthStart())}
                 maxDate={endDate}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                  },
-                }}
+                slotProps={{ textField: { size: "small" } }}
               />
               <DatePicker
                 label="Fecha fin"
                 value={endDate}
                 onChange={(value) => setEndDate(value ?? getMonthEnd())}
                 minDate={startDate}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                  },
-                }}
+                slotProps={{ textField: { size: "small" } }}
               />
-              <FormControl size="small" sx={{ minWidth: 220 }}>
+              <FormControl size="small" sx={{ minWidth: 200 }}>
                 <InputLabel>Cajeros</InputLabel>
                 <Select
                   multiple
@@ -291,7 +284,10 @@ export function SalesPage() {
                 >
                   {users.map((user) => (
                     <MenuItem key={user.id} value={user.id}>
-                      <Checkbox checked={selectedUserIds.includes(user.id)} />
+                      <Checkbox
+                        checked={selectedUserIds.includes(user.id)}
+                        size="small"
+                      />
                       <ListItemText primary={user.full_name} />
                     </MenuItem>
                   ))}
@@ -308,12 +304,16 @@ export function SalesPage() {
         </Alert>
       )}
 
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer
+        component={Paper}
+        elevation={0}
+        sx={{ border: "1px solid rgba(26,32,53,0.10)" }}
+      >
+        <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell width={40}></TableCell>
-              <TableCell>N° venta</TableCell>
+              <TableCell width={40} />
+              <TableCell>N° Venta</TableCell>
               <TableCell>Fecha</TableCell>
               <TableCell>Cajero</TableCell>
               <TableCell align="right">Total</TableCell>
@@ -325,7 +325,11 @@ export function SalesPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                <TableCell
+                  colSpan={8}
+                  align="center"
+                  sx={{ py: 4, color: "text.secondary" }}
+                >
                   Cargando...
                 </TableCell>
               </TableRow>
@@ -343,7 +347,7 @@ export function SalesPage() {
               filteredSales.map((sale) => (
                 <Fragment key={sale.id}>
                   <TableRow hover>
-                    <TableCell>
+                    <TableCell sx={{ p: 0, pl: 1 }}>
                       <IconButton
                         size="small"
                         onClick={() =>
@@ -351,21 +355,40 @@ export function SalesPage() {
                         }
                       >
                         {expandedId === sale.id ? (
-                          <ExpandLess />
+                          <ExpandLess fontSize="small" />
                         ) : (
-                          <ExpandMore />
+                          <ExpandMore fontSize="small" />
                         )}
                       </IconButton>
                     </TableCell>
-                    <TableCell>#{sale.id}</TableCell>
-                    <TableCell>
+                    <TableCell
+                      sx={{
+                        fontVariantNumeric: "tabular-nums",
+                        color: "text.secondary",
+                      }}
+                    >
+                      #{sale.id}
+                    </TableCell>
+                    <TableCell
+                      sx={{ color: "text.secondary", fontSize: "0.8125rem" }}
+                    >
                       {moment(sale.created_at).format("DD/MM/YYYY hh:mm A")}
                     </TableCell>
-                    <TableCell>{sale.user_name}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                    <TableCell sx={{ fontWeight: 500 }}>
+                      {sale.user_name}
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontWeight: 600,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
                       {formatCurrency(sale.total)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell
+                      sx={{ color: "text.secondary", fontSize: "0.8125rem" }}
+                    >
                       {paymentMethodLabel(sale.payment_method)}
                     </TableCell>
                     <TableCell>
@@ -375,19 +398,28 @@ export function SalesPage() {
                             ? "Completada"
                             : "Cancelada"
                         }
-                        color={
-                          sale.status === "completed" ? "success" : "error"
-                        }
                         size="small"
+                        sx={{
+                          backgroundColor:
+                            sale.status === "completed"
+                              ? "rgba(45,106,79,0.12)"
+                              : "rgba(185,28,28,0.10)",
+                          color:
+                            sale.status === "completed"
+                              ? "success.dark"
+                              : "error.dark",
+                          fontWeight: 600,
+                        }}
                       />
                     </TableCell>
-                    <TableCell align="center">
+                    <TableCell align="center" sx={{ p: 0.5 }}>
                       <IconButton
                         size="small"
                         onClick={() => handlePrint(sale.id)}
                         title="Imprimir ticket"
+                        sx={{ color: "text.secondary" }}
                       >
-                        <Print fontSize="small" />
+                        <Print sx={{ fontSize: 16 }} />
                       </IconButton>
                       {sale.status === "completed" && isAdmin && (
                         <IconButton
@@ -396,7 +428,7 @@ export function SalesPage() {
                           onClick={() => handleCancel(sale.id)}
                           title="Cancelar venta"
                         >
-                          <Cancel fontSize="small" />
+                          <Cancel sx={{ fontSize: 16 }} />
                         </IconButton>
                       )}
                     </TableCell>
@@ -408,12 +440,23 @@ export function SalesPage() {
                         py: 0,
                         borderBottom:
                           expandedId === sale.id ? undefined : "none",
+                        backgroundColor: "#faf9f6",
                       }}
                     >
                       <Collapse in={expandedId === sale.id}>
-                        <Box sx={{ py: 2, px: 4 }}>
-                          <Typography variant="subtitle2" gutterBottom>
-                            Detalle de productos:
+                        <Box sx={{ py: 2, px: 5 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              textTransform: "uppercase",
+                              letterSpacing: "0.06em",
+                              fontWeight: 600,
+                              color: "text.secondary",
+                              display: "block",
+                              mb: 1,
+                            }}
+                          >
+                            Detalle de productos
                           </Typography>
                           <Table size="small">
                             <TableHead>
@@ -428,27 +471,39 @@ export function SalesPage() {
                               {sale.items.map((item) => (
                                 <TableRow key={item.id}>
                                   <TableCell>{item.product_name}</TableCell>
-                                  <TableCell align="right">
+                                  <TableCell
+                                    align="right"
+                                    sx={{ fontVariantNumeric: "tabular-nums" }}
+                                  >
                                     {item.quantity}
                                   </TableCell>
-                                  <TableCell align="right">
+                                  <TableCell
+                                    align="right"
+                                    sx={{ fontVariantNumeric: "tabular-nums" }}
+                                  >
                                     {formatCurrency(item.unit_price)}
                                   </TableCell>
-                                  <TableCell align="right">
+                                  <TableCell
+                                    align="right"
+                                    sx={{
+                                      fontWeight: 600,
+                                      fontVariantNumeric: "tabular-nums",
+                                    }}
+                                  >
                                     {formatCurrency(item.subtotal)}
                                   </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
                           </Table>
-                          <Box sx={{ mt: 1, display: "flex", gap: 3 }}>
-                            <Typography variant="body2">
+                          <Box sx={{ mt: 1.5, display: "flex", gap: 3 }}>
+                            <Typography variant="body2" color="text.secondary">
                               Pagado:{" "}
                               <strong>
                                 {formatCurrency(sale.payment_amount)}
                               </strong>
                             </Typography>
-                            <Typography variant="body2">
+                            <Typography variant="body2" color="text.secondary">
                               Cambio:{" "}
                               <strong>
                                 {formatCurrency(sale.change_amount)}
@@ -484,8 +539,8 @@ export function SalesPage() {
         open={confirmOpen}
         onClose={handleCloseConfirm}
         onConfirm={handleConfirmCancel}
-        title="Confirmar cancelación"
-        message="¿Estás seguro de cancelar esta venta?"
+        title="Cancelar venta"
+        message="¿Estás seguro de cancelar esta venta? Esta acción no se puede deshacer."
       />
     </Box>
   );
