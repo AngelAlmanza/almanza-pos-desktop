@@ -1,5 +1,48 @@
 use serde::{Deserialize, Serialize};
 
+/// Lifecycle state of a cash-register session.
+/// The `status` column stores the lowercase string form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionStatus {
+    Open,
+    Closed,
+}
+
+impl SessionStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Closed => "closed",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "open" => Some(Self::Open),
+            "closed" => Some(Self::Closed),
+            _ => None,
+        }
+    }
+}
+
+impl rusqlite::types::FromSql for SessionStatus {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let s = String::column_result(value)?;
+        SessionStatus::parse(&s).ok_or_else(|| {
+            rusqlite::types::FromSqlError::Other(format!("invalid session status: {}", s).into())
+        })
+    }
+}
+
+impl rusqlite::types::ToSql for SessionStatus {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        Ok(rusqlite::types::ToSqlOutput::Owned(rusqlite::types::Value::Text(
+            self.as_str().to_string(),
+        )))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CashRegisterSession {
     pub id: i64,
@@ -10,7 +53,7 @@ pub struct CashRegisterSession {
     pub closing_cash_mxn: Option<f64>,
     pub closing_cash_usd: Option<f64>,
     pub exchange_rate: Option<f64>,
-    pub status: String,
+    pub status: SessionStatus,
     pub opened_at: String,
     pub closed_at: Option<String>,
     pub total_sales: Option<f64>,

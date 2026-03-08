@@ -1,5 +1,48 @@
 use serde::{Deserialize, Serialize};
 
+/// Lifecycle state of a sale.
+/// The `status` column stores the lowercase string form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SaleStatus {
+    Completed,
+    Cancelled,
+}
+
+impl SaleStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Completed => "completed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "completed" => Some(Self::Completed),
+            "cancelled" => Some(Self::Cancelled),
+            _ => None,
+        }
+    }
+}
+
+impl rusqlite::types::FromSql for SaleStatus {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let s = String::column_result(value)?;
+        SaleStatus::parse(&s).ok_or_else(|| {
+            rusqlite::types::FromSqlError::Other(format!("invalid sale status: {}", s).into())
+        })
+    }
+}
+
+impl rusqlite::types::ToSql for SaleStatus {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        Ok(rusqlite::types::ToSqlOutput::Owned(rusqlite::types::Value::Text(
+            self.as_str().to_string(),
+        )))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sale {
     pub id: i64,
@@ -14,7 +57,7 @@ pub struct Sale {
     pub payment_transfer: f64,
     pub exchange_rate: Option<f64>,
     pub change_amount: f64,
-    pub status: String,
+    pub status: SaleStatus,
     pub created_at: String,
     pub items: Vec<SaleItem>,
 }

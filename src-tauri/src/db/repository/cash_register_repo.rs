@@ -1,7 +1,15 @@
 use crate::db::Database;
-use crate::models::cash_register::{CashRegisterSession, CashRegisterSummary};
+use crate::error::{AppError, AppResult};
+use crate::models::cash_register::{CashRegisterSession, CashRegisterSummary, SessionStatus};
+use crate::models::sale::SaleStatus;
 use crate::utils::money;
 use rusqlite::params;
+
+const SELECT_QUERY: &str = "\
+    SELECT cr.id, cr.user_id, u.full_name, cr.opening_amount, cr.closing_amount, \
+           cr.closing_cash_mxn, cr.closing_cash_usd, cr.exchange_rate, \
+           cr.status, cr.opened_at, cr.closed_at \
+    FROM cash_register_sessions cr JOIN users u ON cr.user_id = u.id";
 
 fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<CashRegisterSession> {
     Ok(CashRegisterSession {
@@ -13,7 +21,7 @@ fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<CashRegisterSession> 
         closing_cash_mxn: row.get(5)?,
         closing_cash_usd: row.get(6)?,
         exchange_rate: row.get(7)?,
-        status: row.get(8)?,
+        status: row.get(8)?,   // FromSql convierte TEXT → SessionStatus automáticamente
         opened_at: row.get(9)?,
         closed_at: row.get(10)?,
         total_sales: None,
@@ -21,44 +29,30 @@ fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<CashRegisterSession> 
     })
 }
 
-const SELECT_QUERY: &str = "\
-    SELECT cr.id, cr.user_id, u.full_name, cr.opening_amount, cr.closing_amount, \
-           cr.closing_cash_mxn, cr.closing_cash_usd, cr.exchange_rate, \
-           cr.status, cr.opened_at, cr.closed_at \
-    FROM cash_register_sessions cr JOIN users u ON cr.user_id = u.id";
-
-pub fn find_all(db: &Database) -> Result<Vec<CashRegisterSession>, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+pub fn find_all(db: &Database) -> AppResult<Vec<CashRegisterSession>> {
+    let conn = db.conn.lock()?;
     let query = format!("{} ORDER BY cr.id DESC", SELECT_QUERY);
-    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(&query)?;
 
     let sessions = stmt
-        .query_map([], row_to_session)
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        .query_map([], row_to_session)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(sessions)
 }
 
-pub fn find_by_id(db: &Database, id: i64) -> Result<Option<CashRegisterSession>, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+pub fn find_by_id(db: &Database, id: i64) -> AppResult<Option<CashRegisterSession>> {
+    let conn = db.conn.lock()?;
     let query = format!("{} WHERE cr.id = ?1", SELECT_QUERY);
     let result = conn.query_row(&query, params![id], row_to_session).ok();
     Ok(result)
 }
 
-pub fn find_open_by_user(
-    db: &Database,
-    user_id: i64,
-) -> Result<Option<CashRegisterSession>, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    let query = format!(
-        "{} WHERE cr.user_id = ?1 AND cr.status = 'open'",
-        SELECT_QUERY
-    );
+pub fn find_open_by_user(db: &Database, user_id: i64) -> AppResult<Option<CashRegisterSession>> {
+    let conn = db.conn.lock()?;
+    let query = format!("{} WHERE cr.user_id = ?1 AND cr.status = ?2", SELECT_QUERY);
     let result = conn
-        .query_row(&query, params![user_id], row_to_session)
+        .query_row(&query, params![user_id, SessionStatus::Open], row_to_session)
         .ok();
     Ok(result)
 }
@@ -69,39 +63,44 @@ pub fn find_by_date_range_paginated(
     end_date: &str,
     page: i64,
     page_size: i64,
-) -> Result<(Vec<CashRegisterSession>, i64), String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+) -> AppResult<(Vec<CashRegisterSession>, i64)> {
+    let conn = db.conn.lock()?;
 
-    let total: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM cash_register_sessions cr \
-             WHERE cr.opened_at >= ?1 AND ((cr.status = 'closed' AND cr.closed_at <= ?2) OR (cr.status = 'open' AND cr.opened_at <= ?2))",
-            params![start_date, end_date],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
+    let total: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM cash_register_sessions cr \
+         WHERE cr.opened_at >= ?1 \
+           AND ((cr.status = ?3 AND cr.closed_at <= ?2) \
+             OR (cr.status = ?4 AND cr.opened_at  <= ?2))",
+        params![start_date, end_date, SessionStatus::Closed, SessionStatus::Open],
+        |row| row.get(0),
+    )?;
 
     let offset = (page - 1) * page_size;
     let query = format!(
-        "{} WHERE cr.opened_at >= ?1 AND ((cr.status = 'closed' AND cr.closed_at <= ?2) OR (cr.status = 'open' AND cr.opened_at <= ?2)) ORDER BY cr.id DESC LIMIT ?3 OFFSET ?4",
+        "{} WHERE cr.opened_at >= ?1 \
+           AND ((cr.status = ?3 AND cr.closed_at <= ?2) \
+             OR (cr.status = ?4 AND cr.opened_at  <= ?2)) \
+         ORDER BY cr.id DESC LIMIT ?5 OFFSET ?6",
         SELECT_QUERY
     );
-    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(&query)?;
 
     let sessions = stmt
-        .query_map(params![start_date, end_date, page_size, offset], row_to_session)
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        .query_map(
+            params![start_date, end_date, SessionStatus::Closed, SessionStatus::Open, page_size, offset],
+            row_to_session,
+        )?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok((sessions, total))
 }
 
-
-pub fn find_any_open(db: &Database) -> Result<Option<CashRegisterSession>, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    let query = format!("{} WHERE cr.status = 'open' LIMIT 1", SELECT_QUERY);
-    let result = conn.query_row(&query, [], row_to_session).ok();
+pub fn find_any_open(db: &Database) -> AppResult<Option<CashRegisterSession>> {
+    let conn = db.conn.lock()?;
+    let query = format!("{} WHERE cr.status = ?1 LIMIT 1", SELECT_QUERY);
+    let result = conn
+        .query_row(&query, params![SessionStatus::Open], row_to_session)
+        .ok();
     Ok(result)
 }
 
@@ -110,22 +109,29 @@ pub fn open_session(
     user_id: i64,
     opening_amount: f64,
     exchange_rate: Option<f64>,
-) -> Result<CashRegisterSession, String> {
-    let existing = find_any_open(db)?;
-    if existing.is_some() {
-        return Err("Ya hay una caja abierta. Debe cerrarse antes de abrir otra.".to_string());
+) -> AppResult<CashRegisterSession> {
+    if find_any_open(db)?.is_some() {
+        return Err(AppError::Conflict(
+            "Ya hay una caja abierta. Debe cerrarse antes de abrir otra.".to_string(),
+        ));
     }
 
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn.lock()?;
     conn.execute(
-        "INSERT INTO cash_register_sessions (user_id, opening_amount, exchange_rate, status) VALUES (?1, ?2, ?3, 'open')",
-        params![user_id, money::round2(opening_amount), exchange_rate.map(money::round2)],
-    )
-    .map_err(|e| e.to_string())?;
+        "INSERT INTO cash_register_sessions (user_id, opening_amount, exchange_rate, status) \
+         VALUES (?1, ?2, ?3, ?4)",
+        params![
+            user_id,
+            money::round2(opening_amount),
+            exchange_rate.map(money::round2),
+            SessionStatus::Open,
+        ],
+    )?;
 
     let id = conn.last_insert_rowid();
     drop(conn);
-    find_by_id(db, id)?.ok_or_else(|| "Failed to retrieve created session".to_string())
+    find_by_id(db, id)?
+        .ok_or_else(|| AppError::NotFound("Failed to retrieve created session".to_string()))
 }
 
 struct SessionSalesBreakdown {
@@ -140,30 +146,29 @@ struct SessionSalesBreakdown {
 fn query_sales_breakdown(
     conn: &rusqlite::Connection,
     session_id: i64,
-) -> Result<SessionSalesBreakdown, String> {
-    let row = conn
-        .query_row(
-            "SELECT \
-                COALESCE(SUM(total), 0), \
-                COUNT(*), \
-                COALESCE(SUM(payment_cash_mxn), 0), \
-                COALESCE(SUM(payment_cash_usd), 0), \
-                COALESCE(SUM(payment_transfer), 0), \
-                COALESCE(SUM(change_amount), 0) \
-             FROM sales WHERE cash_register_session_id = ?1 AND status = 'completed'",
-            params![session_id],
-            |row| {
-                Ok(SessionSalesBreakdown {
-                    total_sales: row.get(0)?,
-                    total_transactions: row.get(1)?,
-                    sales_cash_mxn: row.get(2)?,
-                    sales_cash_usd: row.get(3)?,
-                    sales_transfer: row.get(4)?,
-                    total_change_given: row.get(5)?,
-                })
-            },
-        )
-        .map_err(|e| e.to_string())?;
+) -> AppResult<SessionSalesBreakdown> {
+    let row = conn.query_row(
+        "SELECT \
+            COALESCE(SUM(total), 0), \
+            COUNT(*), \
+            COALESCE(SUM(payment_cash_mxn), 0), \
+            COALESCE(SUM(payment_cash_usd), 0), \
+            COALESCE(SUM(payment_transfer), 0), \
+            COALESCE(SUM(change_amount), 0) \
+         FROM sales \
+         WHERE cash_register_session_id = ?1 AND status = ?2",
+        params![session_id, SaleStatus::Completed],
+        |row| {
+            Ok(SessionSalesBreakdown {
+                total_sales: row.get(0)?,
+                total_transactions: row.get(1)?,
+                sales_cash_mxn: row.get(2)?,
+                sales_cash_usd: row.get(3)?,
+                sales_transfer: row.get(4)?,
+                total_change_given: row.get(5)?,
+            })
+        },
+    )?;
 
     Ok(SessionSalesBreakdown {
         total_sales: money::round2(row.total_sales),
@@ -209,40 +214,50 @@ pub fn close_session(
     session_id: i64,
     closing_cash_mxn: f64,
     closing_cash_usd: f64,
-) -> Result<CashRegisterSummary, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+) -> AppResult<CashRegisterSummary> {
+    let conn = db.conn.lock()?;
 
     let closing_total = money::round2(closing_cash_mxn + closing_cash_usd);
     conn.execute(
-        "UPDATE cash_register_sessions SET status = 'closed', \
-         closing_amount = ?1, closing_cash_mxn = ?2, closing_cash_usd = ?3, \
-         closed_at = datetime('now', 'localtime') \
-         WHERE id = ?4 AND status = 'open'",
+        "UPDATE cash_register_sessions \
+         SET status = ?1, \
+             closing_amount = ?2, \
+             closing_cash_mxn = ?3, \
+             closing_cash_usd = ?4, \
+             closed_at = datetime('now', 'localtime') \
+         WHERE id = ?5 AND status = ?6",
         params![
+            SessionStatus::Closed,
             closing_total,
             money::round2(closing_cash_mxn),
             money::round2(closing_cash_usd),
-            session_id
+            session_id,
+            SessionStatus::Open,
         ],
-    )
-    .map_err(|e| e.to_string())?;
+    )?;
 
     if conn.changes() == 0 {
-        return Err("Sesión no encontrada o ya está cerrada".to_string());
+        return Err(AppError::NotFound(
+            "Sesión no encontrada o ya está cerrada".to_string(),
+        ));
     }
 
     let breakdown = query_sales_breakdown(&conn, session_id)?;
     drop(conn);
 
-    let session = find_by_id(db, session_id)?.ok_or_else(|| "Session not found".to_string())?;
+    let session = find_by_id(db, session_id)?
+        .ok_or_else(|| AppError::NotFound("Sesión de caja no encontrada".to_string()))?;
+
     Ok(build_summary(session, breakdown))
 }
 
-pub fn get_summary(db: &Database, session_id: i64) -> Result<CashRegisterSummary, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+pub fn get_summary(db: &Database, session_id: i64) -> AppResult<CashRegisterSummary> {
+    let conn = db.conn.lock()?;
     let breakdown = query_sales_breakdown(&conn, session_id)?;
     drop(conn);
 
-    let session = find_by_id(db, session_id)?.ok_or_else(|| "Session not found".to_string())?;
+    let session = find_by_id(db, session_id)?
+        .ok_or_else(|| AppError::NotFound("Sesión de caja no encontrada".to_string()))?;
+
     Ok(build_summary(session, breakdown))
 }
