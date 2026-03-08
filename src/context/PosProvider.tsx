@@ -18,7 +18,7 @@ interface PosContextType {
   dispatch: Dispatch<PosAction>;
 }
 
-function posReducer(state: CartState, action: PosAction): CartState {
+export function posReducer(state: CartState, action: PosAction): CartState {
   switch (action.type) {
     case 'ADD_ITEM': {
       const { product, quantity } = action.payload;
