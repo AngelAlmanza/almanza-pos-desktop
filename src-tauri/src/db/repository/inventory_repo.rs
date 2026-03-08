@@ -1,5 +1,6 @@
 use crate::db::Database;
 use crate::models::inventory::InventoryAdjustment;
+use crate::utils::money;
 use rusqlite::params;
 
 pub fn find_all(db: &Database) -> Result<Vec<InventoryAdjustment>, String> {
@@ -105,9 +106,10 @@ pub fn create(
     quantity: f64,
     reason: Option<&str>,
 ) -> Result<InventoryAdjustment, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
 
-    // Get current stock
+    // Read current stock before the transaction so the statement borrow doesn't
+    // conflict with the mutable borrow required by conn.transaction().
     let current_stock: f64 = conn
         .query_row(
             "SELECT stock FROM products WHERE id = ?1",
@@ -116,33 +118,37 @@ pub fn create(
         )
         .map_err(|_| "Producto no encontrado".to_string())?;
 
+    let quantity = money::round3(quantity);
     let new_stock = match adjustment_type {
-        "add" | "positive" => current_stock + quantity,
+        "add" | "positive" => money::round3(current_stock + quantity),
         "negative" => {
             if current_stock < quantity {
                 return Err("Stock insuficiente para el ajuste negativo".to_string());
             }
-            current_stock - quantity
+            money::round3(current_stock - quantity)
         }
         _ => return Err("Tipo de ajuste inválido".to_string()),
     };
 
-    conn.execute(
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute(
         "INSERT INTO inventory_adjustments (product_id, user_id, adjustment_type, quantity, previous_stock, new_stock, reason) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![product_id, user_id, adjustment_type, quantity, current_stock, new_stock, reason],
     )
     .map_err(|e| e.to_string())?;
 
-    // Update product stock
-    conn.execute(
+    let id = tx.last_insert_rowid();
+
+    tx.execute(
         "UPDATE products SET stock = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
         params![new_stock, product_id],
     )
     .map_err(|e| e.to_string())?;
 
-    let id = conn.last_insert_rowid();
+    tx.commit().map_err(|e| e.to_string())?;
 
-    // Return the created adjustment
+    // Return the created adjustment (conn is no longer borrowed by the transaction).
     let adj = conn
         .query_row(
             "SELECT ia.id, ia.product_id, p.name, ia.user_id, u.full_name, ia.adjustment_type, ia.quantity, ia.previous_stock, ia.new_stock, ia.reason, ia.created_at FROM inventory_adjustments ia JOIN products p ON ia.product_id = p.id JOIN users u ON ia.user_id = u.id WHERE ia.id = ?1",

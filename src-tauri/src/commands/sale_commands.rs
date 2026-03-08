@@ -6,6 +6,10 @@ use tauri::State;
 
 #[tauri::command]
 pub fn create_sale(db: State<Database>, request: CreateSaleRequest) -> Result<Sale, String> {
+    if request.items.is_empty() {
+        return Err("La venta debe contener al menos un producto".to_string());
+    }
+
     let session = cash_register_repo::find_by_id(&db, request.cash_register_session_id)?
         .ok_or_else(|| "Sesión de caja no encontrada".to_string())?;
 
@@ -14,6 +18,10 @@ pub fn create_sale(db: State<Database>, request: CreateSaleRequest) -> Result<Sa
     }
 
     let exchange_rate = session.exchange_rate.unwrap_or(1.0);
+
+    if request.payment_cash_mxn < 0.0 || request.payment_cash_usd < 0.0 || request.payment_transfer < 0.0 {
+        return Err("Los montos de pago no pueden ser negativos".to_string());
+    }
 
     let cash_mxn = money::round2(request.payment_cash_mxn);
     let cash_usd = money::round2(request.payment_cash_usd);

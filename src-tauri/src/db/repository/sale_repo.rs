@@ -55,9 +55,10 @@ pub fn create(
     change_amount: f64,
     items: &[(i64, String, f64, f64, f64)],
 ) -> Result<Sale, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO sales (cash_register_session_id, user_id, total, payment_method, payment_amount, \
             payment_cash_mxn, payment_cash_usd, payment_transfer, exchange_rate, change_amount) \
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
@@ -68,23 +69,24 @@ pub fn create(
     )
     .map_err(|e| e.to_string())?;
 
-    let sale_id = conn.last_insert_rowid();
+    let sale_id = tx.last_insert_rowid();
 
     for item in items {
-        conn.execute(
+        tx.execute(
             "INSERT INTO sale_items (sale_id, product_id, product_name, quantity, unit_price, subtotal) \
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![sale_id, item.0, item.1, item.2, item.3, item.4],
         )
         .map_err(|e| e.to_string())?;
 
-        conn.execute(
+        tx.execute(
             "UPDATE products SET stock = stock - ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
             params![item.2, item.0],
         )
         .map_err(|e| e.to_string())?;
     }
 
+    tx.commit().map_err(|e| e.to_string())?;
     drop(conn);
     find_by_id(db, sale_id)?.ok_or_else(|| "Failed to retrieve created sale".to_string())
 }
@@ -214,31 +216,38 @@ pub fn get_top_products(
 }
 
 pub fn cancel_sale(db: &Database, sale_id: i64) -> Result<(), String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
 
-    let mut stmt = conn
-        .prepare("SELECT product_id, quantity FROM sale_items WHERE sale_id = ?1")
-        .map_err(|e| e.to_string())?;
+    // Read items before opening the transaction so the statement borrow doesn't
+    // conflict with the mutable borrow required by conn.transaction().
+    let items: Vec<(i64, f64)> = {
+        let mut stmt = conn
+            .prepare("SELECT product_id, quantity FROM sale_items WHERE sale_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![sale_id], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
 
-    let items: Vec<(i64, f64)> = stmt
-        .query_map(params![sale_id], |row| Ok((row.get(0)?, row.get(1)?)))
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     for (product_id, quantity) in items {
-        conn.execute(
+        tx.execute(
             "UPDATE products SET stock = stock + ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
             params![quantity, product_id],
         )
         .map_err(|e| e.to_string())?;
     }
 
-    conn.execute(
+    tx.execute(
         "UPDATE sales SET status = 'cancelled' WHERE id = ?1",
         params![sale_id],
     )
     .map_err(|e| e.to_string())?;
 
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }

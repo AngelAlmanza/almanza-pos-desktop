@@ -34,6 +34,19 @@ pub fn create_product(
     db: State<Database>,
     request: CreateProductRequest,
 ) -> Result<Product, String> {
+    if request.name.trim().is_empty() {
+        return Err("El nombre del producto no puede estar vacío".to_string());
+    }
+    if request.price < 0.0 {
+        return Err("El precio no puede ser negativo".to_string());
+    }
+    if request.stock.unwrap_or(0.0) < 0.0 {
+        return Err("El stock inicial no puede ser negativo".to_string());
+    }
+    if request.min_stock.unwrap_or(0.0) < 0.0 {
+        return Err("El stock mínimo no puede ser negativo".to_string());
+    }
+
     if let Some(ref barcode) = request.barcode {
         let existing_product = product_repo::find_by_barcode(&db, barcode)?;
         if existing_product.is_some() {
@@ -62,6 +75,22 @@ pub fn update_product(
     db: State<Database>,
     request: UpdateProductRequest,
 ) -> Result<Product, String> {
+    if let Some(ref name) = request.name {
+        if name.trim().is_empty() {
+            return Err("El nombre del producto no puede estar vacío".to_string());
+        }
+    }
+    if let Some(price) = request.price {
+        if price < 0.0 {
+            return Err("El precio no puede ser negativo".to_string());
+        }
+    }
+    if let Some(min_stock) = request.min_stock {
+        if min_stock < 0.0 {
+            return Err("El stock mínimo no puede ser negativo".to_string());
+        }
+    }
+
     if let Some(ref barcode) = request.barcode {
         let existing_product = product_repo::find_by_barcode(&db, barcode)?;
         if existing_product.is_some() && existing_product.unwrap().id != request.id {

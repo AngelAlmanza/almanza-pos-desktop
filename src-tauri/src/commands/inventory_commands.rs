@@ -32,6 +32,10 @@ pub fn create_inventory_adjustment(
     db: State<Database>,
     request: CreateInventoryAdjustmentRequest,
 ) -> Result<InventoryAdjustment, String> {
+    if request.quantity <= 0.0 {
+        return Err("La cantidad del ajuste debe ser mayor a cero".to_string());
+    }
+
     inventory_repo::create(
         &db,
         request.product_id,

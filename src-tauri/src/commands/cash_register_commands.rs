@@ -46,6 +46,15 @@ pub fn open_cash_register(
     db: State<Database>,
     request: OpenCashRegisterRequest,
 ) -> Result<CashRegisterSession, String> {
+    if request.opening_amount < 0.0 {
+        return Err("El monto de apertura no puede ser negativo".to_string());
+    }
+    if let Some(rate) = request.exchange_rate {
+        if rate <= 0.0 {
+            return Err("El tipo de cambio debe ser mayor a cero".to_string());
+        }
+    }
+
     cash_register_repo::open_session(
         &db,
         request.user_id,
