@@ -1,4 +1,6 @@
-const LABELS: Record<string, string> = {
+import type { PaymentMethod } from '../types';
+
+const LABELS: Record<PaymentMethod, string> = {
   cash_mxn: 'Efectivo MXN',
   cash_usd: 'Efectivo USD',
   cash: 'Efectivo',
@@ -6,6 +8,6 @@ const LABELS: Record<string, string> = {
   mixed: 'Mixto',
 };
 
-export function paymentMethodLabel(method: string): string {
-  return LABELS[method] ?? method;
+export function paymentMethodLabel(method: PaymentMethod): string {
+  return LABELS[method];
 }

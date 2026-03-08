@@ -28,6 +28,7 @@ import type { CreateProductDTO, UpdateProductDTO } from "../dto";
 import type { Category, Product } from "../models";
 import { CategoryService } from "../services/CategoryService";
 import { ProductService } from "../services/ProductService";
+import type { ProductUnit } from "../types";
 import { cleanError } from "../utils/CleanError";
 
 export function ProductsPage() {
@@ -42,7 +43,16 @@ export function ProductsPage() {
   const [catName, setCatName] = useState("");
   const [catDesc, setCatDesc] = useState("");
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    name: string;
+    description: string;
+    barcode: string;
+    price: string;
+    unit: ProductUnit;
+    category_id: string;
+    stock: string;
+    min_stock: string;
+  }>({
     name: "",
     description: "",
     barcode: "",
@@ -395,13 +405,20 @@ export function ProductsPage() {
                 required
                 sx={{ flex: 1 }}
                 size="small"
-                inputProps={{ step: "0.01", min: "0" }}
+                slotProps={{
+                  htmlInput: {
+                    step: "0.01",
+                    min: "0",
+                  },
+                }}
               />
               <TextField
                 select
                 label="Unidad"
                 value={form.unit}
-                onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, unit: e.target.value as ProductUnit })
+                }
                 sx={{ flex: 1 }}
                 size="small"
               >
@@ -438,7 +455,12 @@ export function ProductsPage() {
                   onChange={(e) => setForm({ ...form, stock: e.target.value })}
                   sx={{ flex: 1 }}
                   size="small"
-                  inputProps={{ step: "0.01", min: "0" }}
+                  slotProps={{
+                    htmlInput: {
+                      step: "0.01",
+                      min: "0",
+                    },
+                  }}
                 />
                 <TextField
                   label="Stock mínimo"
@@ -449,7 +471,12 @@ export function ProductsPage() {
                   }
                   sx={{ flex: 1 }}
                   size="small"
-                  inputProps={{ step: "0.01", min: "0" }}
+                  slotProps={{
+                    htmlInput: {
+                      step: "0.01",
+                      min: "0",
+                    },
+                  }}
                 />
               </Box>
             )}
@@ -463,7 +490,12 @@ export function ProductsPage() {
                 }
                 fullWidth
                 size="small"
-                inputProps={{ step: "0.01", min: "0" }}
+                slotProps={{
+                  htmlInput: {
+                    step: "0.01",
+                    min: "0",
+                  },
+                }}
               />
             )}
           </Box>

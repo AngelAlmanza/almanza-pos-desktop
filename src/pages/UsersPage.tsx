@@ -25,7 +25,7 @@ import { useEffect, useState } from "react";
 import { ConfirmModal } from "../components/ConfirmModal";
 import type { User } from "../models";
 import { UserService } from "../services/UserService";
-import { Roles } from "../types/Roles";
+import type { UserRole } from "../types";
 import { cleanError } from "../utils/CleanError";
 
 export function UsersPage() {
@@ -39,7 +39,7 @@ export function UsersPage() {
     username: "",
     password: "",
     full_name: "",
-    role: "cashier" as Roles,
+    role: "cashier" as UserRole,
   });
 
   const loadUsers = async () => {
@@ -304,7 +304,7 @@ export function UsersPage() {
               label="Rol"
               value={form.role}
               onChange={(e) =>
-                setForm({ ...form, role: e.target.value as Roles })
+                setForm({ ...form, role: e.target.value as UserRole })
               }
               required
               fullWidth

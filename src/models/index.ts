@@ -1,9 +1,18 @@
+import type {
+  AdjustmentType,
+  PaymentMethod,
+  ProductUnit,
+  SaleStatus,
+  SessionStatus,
+  UserRole,
+} from '../types';
+
 // User models
 export interface User {
   id: number;
   username: string;
   full_name: string;
-  role: 'admin' | 'cashier';
+  role: UserRole;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -29,7 +38,7 @@ export interface Product {
   description: string | null;
   barcode: string | null;
   price: number;
-  unit: string;
+  unit: ProductUnit;
   category_id: number | null;
   category_name: string | null;
   stock: number;
@@ -49,7 +58,7 @@ export interface CashRegisterSession {
   closing_cash_mxn: number | null;
   closing_cash_usd: number | null;
   exchange_rate: number | null;
-  status: 'open' | 'closed';
+  status: SessionStatus;
   opened_at: string;
   closed_at: string | null;
   total_sales: number | null;
@@ -89,14 +98,14 @@ export interface Sale {
   user_id: number;
   user_name: string | null;
   total: number;
-  payment_method: string;
+  payment_method: PaymentMethod;
   payment_amount: number;
   payment_cash_mxn: number;
   payment_cash_usd: number;
   payment_transfer: number;
   exchange_rate: number | null;
   change_amount: number;
-  status: string;
+  status: SaleStatus;
   created_at: string;
   items: SaleItem[];
 }
@@ -122,7 +131,7 @@ export interface InventoryAdjustment {
   product_name: string | null;
   user_id: number;
   user_name: string | null;
-  adjustment_type: 'add' | 'positive' | 'negative';
+  adjustment_type: AdjustmentType;
   quantity: number;
   previous_stock: number;
   new_stock: number;

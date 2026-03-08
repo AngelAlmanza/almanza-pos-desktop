@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { LoginResponse, User } from '../models';
 import type { LoginDTO } from '../dto';
+import type { UserRole } from '../types';
 
 const SESSION_KEY = 'pos_session';
 
@@ -42,7 +43,8 @@ export class AuthService {
 
   static isAdmin(): boolean {
     const user = this.getCurrentUser();
-    return user?.role === 'admin';
+    const adminRole: UserRole = 'admin';
+    return user?.role === adminRole;
   }
 
   static getUserId(): number | null {

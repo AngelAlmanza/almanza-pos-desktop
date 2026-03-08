@@ -22,8 +22,12 @@ describe('paymentMethodLabel', () => {
     expect(paymentMethodLabel('mixed')).toBe('Mixto');
   });
 
-  it('returns the raw method key when label is not found', () => {
-    expect(paymentMethodLabel('unknown_method')).toBe('unknown_method');
-    expect(paymentMethodLabel('')).toBe('');
+  it('every PaymentMethod has a non-empty label', () => {
+    // El tipo es cerrado: el Record cubre todos los valores posibles.
+    // Este test garantiza que ninguna variante quede sin etiqueta.
+    const methods = ['cash_mxn', 'cash_usd', 'cash', 'transfer', 'mixed'] as const;
+    for (const method of methods) {
+      expect(paymentMethodLabel(method)).toBeTruthy();
+    }
   });
 });

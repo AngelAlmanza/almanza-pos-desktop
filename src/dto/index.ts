@@ -1,3 +1,5 @@
+import type { AdjustmentType, ProductUnit, UserRole } from '../types';
+
 // Auth DTOs
 export interface LoginDTO {
   username: string;
@@ -9,7 +11,7 @@ export interface CreateUserDTO {
   username: string;
   password: string;
   full_name: string;
-  role: 'admin' | 'cashier';
+  role: UserRole;
 }
 
 export interface UpdateUserDTO {
@@ -17,7 +19,7 @@ export interface UpdateUserDTO {
   username?: string;
   password?: string;
   full_name?: string;
-  role?: 'admin' | 'cashier';
+  role?: UserRole;
   active?: boolean;
 }
 
@@ -39,7 +41,7 @@ export interface CreateProductDTO {
   description?: string;
   barcode?: string;
   price: number;
-  unit: string;
+  unit: ProductUnit;
   category_id?: number;
   stock?: number;
   min_stock?: number;
@@ -51,7 +53,7 @@ export interface UpdateProductDTO {
   description?: string;
   barcode?: string;
   price?: number;
-  unit?: string;
+  unit?: ProductUnit;
   category_id?: number;
   min_stock?: number;
   active?: boolean;
@@ -94,7 +96,7 @@ export interface DateRangeDTO {
 export interface CreateInventoryAdjustmentDTO {
   product_id: number;
   user_id: number;
-  adjustment_type: 'add' | 'positive' | 'negative';
+  adjustment_type: AdjustmentType;
   quantity: number;
   reason?: string;
 }
