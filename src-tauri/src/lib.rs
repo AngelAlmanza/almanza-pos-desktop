@@ -52,7 +52,6 @@ pub fn run() {
             search_products,
             create_product,
             update_product,
-            update_product_stock,
             delete_product,
             // Cash Register
             get_cash_register_sessions,

@@ -117,11 +117,6 @@ pub fn update_product(
 }
 
 #[tauri::command]
-pub fn update_product_stock(db: State<Database>, id: i64, stock: f64) -> Result<(), String> {
-    product_repo::update_stock(&db, id, stock)
-}
-
-#[tauri::command]
 pub fn delete_product(db: State<Database>, id: i64) -> Result<(), String> {
     product_repo::delete(&db, id)
 }

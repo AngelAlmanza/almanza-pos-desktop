@@ -159,16 +159,6 @@ pub fn update(
     find_by_id(db, id)?.ok_or_else(|| "Product not found".to_string())
 }
 
-pub fn update_stock(db: &Database, id: i64, new_stock: f64) -> Result<(), String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute(
-        "UPDATE products SET stock = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
-        params![new_stock, id],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 pub fn delete(db: &Database, id: i64) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
 
