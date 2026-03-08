@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Sale, SalesReport, TopProduct } from '../models';
+import type { PaginatedResult, Sale, SalesReport, TopProduct } from '../models';
 import type { CreateSaleDTO, DateRangeDTO } from '../dto';
 
 export class SaleService {
@@ -15,12 +15,12 @@ export class SaleService {
     return invoke<Sale[]>('get_sales');
   }
 
-  static async getBySession(sessionId: number): Promise<Sale[]> {
-    return invoke<Sale[]>('get_sales_by_session', { sessionId });
+  static async getBySession(sessionId: number, page = 1, pageSize = 50): Promise<PaginatedResult<Sale>> {
+    return invoke<PaginatedResult<Sale>>('get_sales_by_session', { sessionId, page, pageSize });
   }
 
-  static async getByDateRange(dto: DateRangeDTO): Promise<Sale[]> {
-    return invoke<Sale[]>('get_sales_by_date_range', { request: dto });
+  static async getByDateRange(dto: DateRangeDTO, page = 1, pageSize = 50): Promise<PaginatedResult<Sale>> {
+    return invoke<PaginatedResult<Sale>>('get_sales_by_date_range', { request: dto, page, pageSize });
   }
 
   static async getReport(dto: DateRangeDTO): Promise<SalesReport> {

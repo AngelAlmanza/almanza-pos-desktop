@@ -18,6 +18,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Typography,
@@ -50,6 +51,9 @@ export function CashRegisterPage() {
 
   const [startDate, setStartDate] = useState<Moment>(() => getMonthStart());
   const [endDate, setEndDate] = useState<Moment>(() => getMonthEnd());
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [totalRows, setTotalRows] = useState(0);
 
   const [openForm, setOpenForm] = useState({
     user_id: user?.id?.toString() || '',
@@ -62,16 +66,33 @@ export function CashRegisterPage() {
     closing_cash_usd: '',
   });
 
-  const loadSessions = async () => {
+  const loadSessions = async (currentPage = page, currentRowsPerPage = rowsPerPage) => {
     try {
-      const sessionsData = await CashRegisterService.getByDateRange({
-        start_date: startDate.format('YYYY-MM-DD') + ' 00:00:00',
-        end_date: endDate.format('YYYY-MM-DD') + ' 23:59:59',
-      });
-      setSessions(sessionsData);
+      const result = await CashRegisterService.getByDateRange(
+        {
+          start_date: startDate.format('YYYY-MM-DD') + ' 00:00:00',
+          end_date: endDate.format('YYYY-MM-DD') + ' 23:59:59',
+        },
+        currentPage + 1,
+        currentRowsPerPage,
+      );
+      setSessions(result.data);
+      setTotalRows(result.total);
     } catch (err) {
       setError(String(err));
     }
+  };
+
+  const handlePageChange = (_: unknown, newPage: number) => {
+    setPage(newPage);
+    loadSessions(newPage, rowsPerPage);
+  };
+
+  const handleRowsPerPageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newRows = parseInt(e.target.value, 10);
+    setRowsPerPage(newRows);
+    setPage(0);
+    loadSessions(0, newRows);
   };
 
   const loadData = async () => {
@@ -154,7 +175,8 @@ export function CashRegisterPage() {
   }, []);
 
   useEffect(() => {
-    loadSessions();
+    setPage(0);
+    loadSessions(0, rowsPerPage);
   }, [startDate, endDate]);
 
   return (
@@ -230,7 +252,8 @@ export function CashRegisterPage() {
         </Card>
       )}
 
-      <TableContainer component={Paper}>
+      <Paper>
+      <TableContainer>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -272,6 +295,18 @@ export function CashRegisterPage() {
           </TableBody>
         </Table>
       </TableContainer>
+      <TablePagination
+        component="div"
+        count={totalRows}
+        page={page}
+        onPageChange={handlePageChange}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleRowsPerPageChange}
+        rowsPerPageOptions={[25, 50, 100]}
+        labelRowsPerPage="Filas por página:"
+        labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+      />
+      </Paper>
 
       {/* Open Cash Register Dialog */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>

@@ -4,7 +4,10 @@ use crate::models::cash_register::{
     CashRegisterSession, CashRegisterSummary, CloseCashRegisterRequest, DateRangeRequest,
     OpenCashRegisterRequest,
 };
+use crate::models::shared::PaginatedResult;
 use tauri::State;
+
+const DEFAULT_PAGE_SIZE: i64 = 50;
 
 #[tauri::command]
 pub fn get_cash_register_sessions(db: State<Database>) -> Result<Vec<CashRegisterSession>, String> {
@@ -15,8 +18,24 @@ pub fn get_cash_register_sessions(db: State<Database>) -> Result<Vec<CashRegiste
 pub fn get_cash_register_sessions_by_date_range(
     db: State<Database>,
     request: DateRangeRequest,
-) -> Result<Vec<CashRegisterSession>, String> {
-    cash_register_repo::find_by_date_range(&db, &request.start_date, &request.end_date)
+    page: Option<i64>,
+    page_size: Option<i64>,
+) -> Result<PaginatedResult<CashRegisterSession>, String> {
+    let page = page.unwrap_or(1).max(1);
+    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, 200);
+    let (data, total) = cash_register_repo::find_by_date_range_paginated(
+        &db,
+        &request.start_date,
+        &request.end_date,
+        page,
+        page_size,
+    )?;
+    Ok(PaginatedResult {
+        data,
+        total,
+        page,
+        page_size,
+    })
 }
 
 #[tauri::command]

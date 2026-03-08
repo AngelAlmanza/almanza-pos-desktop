@@ -1,5 +1,5 @@
-import { Cancel, ExpandLess, ExpandMore, Print } from '@mui/icons-material';
-import type { SelectChangeEvent } from '@mui/material';
+import { Cancel, ExpandLess, ExpandMore, Print } from "@mui/icons-material";
+import type { SelectChangeEvent } from "@mui/material";
 import {
   Alert,
   Box,
@@ -20,31 +20,32 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Typography,
-} from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers';
-import moment, { Moment } from 'moment';
-import { Fragment, useEffect, useMemo, useState } from 'react';
-import { ConfirmModal } from '../components/ConfirmModal';
-import { useAuth } from '../context/AuthContext';
-import type { Sale, User } from '../models';
-import { SaleService } from '../services/SaleService';
-import { UserService } from '../services/UserService';
-import { cleanError } from '../utils/CleanError';
-import { TicketPrinter } from '../utils/TicketPrinter';
-import { formatCurrency } from '../utils/FormatCurrency';
-import { paymentMethodLabel } from '../utils/PaymentLabels';
+} from "@mui/material";
+import { DatePicker } from "@mui/x-date-pickers";
+import moment, { Moment } from "moment";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { ConfirmModal } from "../components/ConfirmModal";
+import { useAuth } from "../context/AuthContext";
+import type { Sale, User } from "../models";
+import { SaleService } from "../services/SaleService";
+import { UserService } from "../services/UserService";
+import { cleanError } from "../utils/CleanError";
+import { TicketPrinter } from "../utils/TicketPrinter";
+import { formatCurrency } from "../utils/FormatCurrency";
+import { paymentMethodLabel } from "../utils/PaymentLabels";
 
-moment.locale('es');
+moment.locale("es");
 
 const getMonthStart = (): Moment => {
-  return moment().startOf('month');
+  return moment().startOf("month");
 };
 
 const getMonthEnd = (): Moment => {
-  return moment().endOf('month');
+  return moment().endOf("month");
 };
 
 export function SalesPage() {
@@ -52,13 +53,17 @@ export function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   const [startDate, setStartDate] = useState(() => getMonthStart());
   const [endDate, setEndDate] = useState(() => getMonthEnd());
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
-  const [searchSaleId, setSearchSaleId] = useState('');
+  const [searchSaleId, setSearchSaleId] = useState("");
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [totalRows, setTotalRows] = useState(0);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmId, setConfirmId] = useState<number | null>(null);
@@ -73,21 +78,36 @@ export function SalesPage() {
     }
   };
 
-  const loadSales = async () => {
+  const loadSales = async (
+    currentPage = page,
+    currentRowsPerPage = rowsPerPage,
+  ) => {
     try {
       setLoading(true);
-      let data: Sale[];
+      const apiPage = currentPage + 1; // MUI uses 0-based, backend uses 1-based
       if (isAdmin) {
-        data = await SaleService.getByDateRange({
-          start_date: startDate.format('YYYY-MM-DD') + ' 00:00:00',
-          end_date: endDate.format('YYYY-MM-DD') + ' 23:59:59',
-        });
+        const result = await SaleService.getByDateRange(
+          {
+            start_date: startDate.format("YYYY-MM-DD") + " 00:00:00",
+            end_date: endDate.format("YYYY-MM-DD") + " 23:59:59",
+          },
+          apiPage,
+          currentRowsPerPage,
+        );
+        setSales(result.data);
+        setTotalRows(result.total);
       } else if (cashRegisterSession) {
-        data = await SaleService.getBySession(cashRegisterSession.id);
+        const result = await SaleService.getBySession(
+          cashRegisterSession.id,
+          apiPage,
+          currentRowsPerPage,
+        );
+        setSales(result.data);
+        setTotalRows(result.total);
       } else {
-        data = [];
+        setSales([]);
+        setTotalRows(0);
       }
-      setSales(data);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -97,7 +117,9 @@ export function SalesPage() {
 
   const handleUserFilterChange = (event: SelectChangeEvent<number[]>) => {
     const value = event.target.value;
-    setSelectedUserIds(typeof value === 'string' ? value.split(',').map(Number) : value);
+    setSelectedUserIds(
+      typeof value === "string" ? value.split(",").map(Number) : value,
+    );
   };
 
   const handleCancel = (saleId: number) => {
@@ -140,7 +162,9 @@ export function SalesPage() {
     if (isAdmin && users.length > 0) {
       result = result.filter((sale) => selectedUserIds.includes(sale.user_id));
     }
-    const parsedId = searchSaleId.trim() ? parseInt(searchSaleId.trim(), 10) : NaN;
+    const parsedId = searchSaleId.trim()
+      ? parseInt(searchSaleId.trim(), 10)
+      : NaN;
     if (!Number.isNaN(parsedId)) {
       result = result.filter((sale) => sale.id === parsedId);
     }
@@ -153,13 +177,26 @@ export function SalesPage() {
     }
   }, [isAdmin]);
 
+  const handlePageChange = (_: unknown, newPage: number) => {
+    setPage(newPage);
+    loadSales(newPage, rowsPerPage);
+  };
+
+  const handleRowsPerPageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newRowsPerPage = parseInt(e.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
+    setPage(0);
+    loadSales(0, newRowsPerPage);
+  };
+
   useEffect(() => {
-    loadSales();
+    setPage(0);
+    loadSales(0, rowsPerPage);
   }, [startDate, endDate]); // this ensures that the sales are loaded when the date range changes
 
   if (!isAdmin && !cashRegisterSession) {
     return (
-      <Box sx={{ textAlign: 'center', mt: 8 }}>
+      <Box sx={{ textAlign: "center", mt: 8 }}>
         <Typography variant="h5" color="text.secondary">
           No tienes acceso a las ventas
         </Typography>
@@ -172,13 +209,31 @@ export function SalesPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
         <Typography variant="h5">Ventas</Typography>
-        <Button variant="outlined" onClick={loadSales}>Actualizar</Button>
+        <Button variant="outlined" onClick={() => loadSales()}>
+          Actualizar
+        </Button>
       </Box>
 
       {(isAdmin || cashRegisterSession) && (
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 2,
+            mb: 2,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
           <TextField
             label="N° venta"
             placeholder="Ej: 42"
@@ -190,64 +245,68 @@ export function SalesPage() {
             slotProps={{
               htmlInput: {
                 min: 1,
-                step: 1
+                step: 1,
               },
             }}
           />
           {isAdmin && (
             <>
-          <DatePicker
-            label="Fecha inicio"
-            value={startDate}
-            onChange={(value) => setStartDate(value ?? getMonthStart())}
-            maxDate={endDate}
-            slotProps={{
-              textField: {
-                size: 'small',
-              },
-            }}
-          />
-          <DatePicker
-            label="Fecha fin"
-            value={endDate}
-            onChange={(value) => setEndDate(value ?? getMonthEnd())}
-            minDate={startDate}
-            slotProps={{
-              textField: {
-                size: 'small',
-              },
-            }}
-          />
-          <FormControl size="small" sx={{ minWidth: 220 }}>
-            <InputLabel>Cajeros</InputLabel>
-            <Select
-              multiple
-              value={selectedUserIds}
-              onChange={handleUserFilterChange}
-              input={<OutlinedInput label="Cajeros" />}
-              renderValue={(selected) =>
-                selected.length === users.length
-                  ? 'Todos'
-                  : users
-                    .filter((u) => selected.includes(u.id))
-                    .map((u) => u.full_name)
-                    .join(', ')
-              }
-            >
-              {users.map((user) => (
-                <MenuItem key={user.id} value={user.id}>
-                  <Checkbox checked={selectedUserIds.includes(user.id)} />
-                  <ListItemText primary={user.full_name} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              <DatePicker
+                label="Fecha inicio"
+                value={startDate}
+                onChange={(value) => setStartDate(value ?? getMonthStart())}
+                maxDate={endDate}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                  },
+                }}
+              />
+              <DatePicker
+                label="Fecha fin"
+                value={endDate}
+                onChange={(value) => setEndDate(value ?? getMonthEnd())}
+                minDate={startDate}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                  },
+                }}
+              />
+              <FormControl size="small" sx={{ minWidth: 220 }}>
+                <InputLabel>Cajeros</InputLabel>
+                <Select
+                  multiple
+                  value={selectedUserIds}
+                  onChange={handleUserFilterChange}
+                  input={<OutlinedInput label="Cajeros" />}
+                  renderValue={(selected) =>
+                    selected.length === users.length
+                      ? "Todos"
+                      : users
+                          .filter((u) => selected.includes(u.id))
+                          .map((u) => u.full_name)
+                          .join(", ")
+                  }
+                >
+                  {users.map((user) => (
+                    <MenuItem key={user.id} value={user.id}>
+                      <Checkbox checked={selectedUserIds.includes(user.id)} />
+                      <ListItemText primary={user.full_name} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </>
           )}
         </Box>
       )}
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+          {error}
+        </Alert>
+      )}
 
       <TableContainer component={Paper}>
         <Table>
@@ -266,11 +325,17 @@ export function SalesPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>Cargando...</TableCell>
+                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                  Cargando...
+                </TableCell>
               </TableRow>
             ) : filteredSales.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                <TableCell
+                  colSpan={8}
+                  align="center"
+                  sx={{ py: 4, color: "text.secondary" }}
+                >
                   No hay ventas registradas
                 </TableCell>
               </TableRow>
@@ -279,38 +344,77 @@ export function SalesPage() {
                 <Fragment key={sale.id}>
                   <TableRow hover>
                     <TableCell>
-                      <IconButton size="small" onClick={() => setExpandedId(expandedId === sale.id ? null : sale.id)}>
-                        {expandedId === sale.id ? <ExpandLess /> : <ExpandMore />}
+                      <IconButton
+                        size="small"
+                        onClick={() =>
+                          setExpandedId(expandedId === sale.id ? null : sale.id)
+                        }
+                      >
+                        {expandedId === sale.id ? (
+                          <ExpandLess />
+                        ) : (
+                          <ExpandMore />
+                        )}
                       </IconButton>
                     </TableCell>
                     <TableCell>#{sale.id}</TableCell>
-                    <TableCell>{moment(sale.created_at).format('DD/MM/YYYY hh:mm A')}</TableCell>
+                    <TableCell>
+                      {moment(sale.created_at).format("DD/MM/YYYY hh:mm A")}
+                    </TableCell>
                     <TableCell>{sale.user_name}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(sale.total)}</TableCell>
-                    <TableCell>{paymentMethodLabel(sale.payment_method)}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      {formatCurrency(sale.total)}
+                    </TableCell>
+                    <TableCell>
+                      {paymentMethodLabel(sale.payment_method)}
+                    </TableCell>
                     <TableCell>
                       <Chip
-                        label={sale.status === 'completed' ? 'Completada' : 'Cancelada'}
-                        color={sale.status === 'completed' ? 'success' : 'error'}
+                        label={
+                          sale.status === "completed"
+                            ? "Completada"
+                            : "Cancelada"
+                        }
+                        color={
+                          sale.status === "completed" ? "success" : "error"
+                        }
                         size="small"
                       />
                     </TableCell>
                     <TableCell align="center">
-                      <IconButton size="small" onClick={() => handlePrint(sale.id)} title="Imprimir ticket">
+                      <IconButton
+                        size="small"
+                        onClick={() => handlePrint(sale.id)}
+                        title="Imprimir ticket"
+                      >
                         <Print fontSize="small" />
                       </IconButton>
-                      {sale.status === 'completed' && isAdmin && (
-                        <IconButton size="small" color="error" onClick={() => handleCancel(sale.id)} title="Cancelar venta">
+                      {sale.status === "completed" && isAdmin && (
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleCancel(sale.id)}
+                          title="Cancelar venta"
+                        >
                           <Cancel fontSize="small" />
                         </IconButton>
                       )}
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell colSpan={8} sx={{ py: 0, borderBottom: expandedId === sale.id ? undefined : 'none' }}>
+                    <TableCell
+                      colSpan={8}
+                      sx={{
+                        py: 0,
+                        borderBottom:
+                          expandedId === sale.id ? undefined : "none",
+                      }}
+                    >
                       <Collapse in={expandedId === sale.id}>
                         <Box sx={{ py: 2, px: 4 }}>
-                          <Typography variant="subtitle2" gutterBottom>Detalle de productos:</Typography>
+                          <Typography variant="subtitle2" gutterBottom>
+                            Detalle de productos:
+                          </Typography>
                           <Table size="small">
                             <TableHead>
                               <TableRow>
@@ -324,16 +428,32 @@ export function SalesPage() {
                               {sale.items.map((item) => (
                                 <TableRow key={item.id}>
                                   <TableCell>{item.product_name}</TableCell>
-                                  <TableCell align="right">{item.quantity}</TableCell>
-                                  <TableCell align="right">{formatCurrency(item.unit_price)}</TableCell>
-                                  <TableCell align="right">{formatCurrency(item.subtotal)}</TableCell>
+                                  <TableCell align="right">
+                                    {item.quantity}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {formatCurrency(item.unit_price)}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {formatCurrency(item.subtotal)}
+                                  </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
                           </Table>
-                          <Box sx={{ mt: 1, display: 'flex', gap: 3 }}>
-                            <Typography variant="body2">Pagado: <strong>{formatCurrency(sale.payment_amount)}</strong></Typography>
-                            <Typography variant="body2">Cambio: <strong>{formatCurrency(sale.change_amount)}</strong></Typography>
+                          <Box sx={{ mt: 1, display: "flex", gap: 3 }}>
+                            <Typography variant="body2">
+                              Pagado:{" "}
+                              <strong>
+                                {formatCurrency(sale.payment_amount)}
+                              </strong>
+                            </Typography>
+                            <Typography variant="body2">
+                              Cambio:{" "}
+                              <strong>
+                                {formatCurrency(sale.change_amount)}
+                              </strong>
+                            </Typography>
                           </Box>
                         </Box>
                       </Collapse>
@@ -345,6 +465,20 @@ export function SalesPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <TablePagination
+        component="div"
+        count={totalRows}
+        page={page}
+        onPageChange={handlePageChange}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleRowsPerPageChange}
+        rowsPerPageOptions={[25, 50, 100]}
+        labelRowsPerPage="Filas por página:"
+        labelDisplayedRows={({ from, to, count }) =>
+          `${from}–${to} de ${count}`
+        }
+      />
 
       <ConfirmModal
         open={confirmOpen}

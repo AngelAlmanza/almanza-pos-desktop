@@ -4,7 +4,7 @@ import type {
   DateRangeDTO,
   OpenCashRegisterDTO,
 } from "../dto";
-import type { CashRegisterSession, CashRegisterSummary } from "../models";
+import type { CashRegisterSession, CashRegisterSummary, PaginatedResult } from "../models";
 
 export class CashRegisterService {
   static async getAll(): Promise<CashRegisterSession[]> {
@@ -13,10 +13,12 @@ export class CashRegisterService {
 
   static async getByDateRange(
     dto: DateRangeDTO,
-  ): Promise<CashRegisterSession[]> {
-    return invoke<CashRegisterSession[]>(
+    page = 1,
+    pageSize = 50,
+  ): Promise<PaginatedResult<CashRegisterSession>> {
+    return invoke<PaginatedResult<CashRegisterSession>>(
       "get_cash_register_sessions_by_date_range",
-      { request: dto },
+      { request: dto, page, pageSize },
     );
   }
 

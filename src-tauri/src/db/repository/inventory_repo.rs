@@ -34,18 +34,34 @@ pub fn find_all(db: &Database) -> Result<Vec<InventoryAdjustment>, String> {
     Ok(adjustments)
 }
 
-pub fn find_by_date_range(
+pub fn find_by_date_range_paginated(
     db: &Database,
     start_date: &str,
     end_date: &str,
-) -> Result<Vec<InventoryAdjustment>, String> {
+    page: i64,
+    page_size: i64,
+) -> Result<(Vec<InventoryAdjustment>, i64), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let total: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM inventory_adjustments ia WHERE ia.created_at >= ?1 AND ia.created_at <= ?2",
+            params![start_date, end_date],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let offset = (page - 1) * page_size;
     let mut stmt = conn
-        .prepare("SELECT ia.id, ia.product_id, p.name, ia.user_id, u.full_name, ia.adjustment_type, ia.quantity, ia.previous_stock, ia.new_stock, ia.reason, ia.created_at FROM inventory_adjustments ia JOIN products p ON ia.product_id = p.id JOIN users u ON ia.user_id = u.id WHERE ia.created_at >= ?1 AND ia.created_at <= ?2 ORDER BY ia.id DESC")
+        .prepare(
+            "SELECT ia.id, ia.product_id, p.name, ia.user_id, u.full_name, ia.adjustment_type, ia.quantity, ia.previous_stock, ia.new_stock, ia.reason, ia.created_at \
+             FROM inventory_adjustments ia JOIN products p ON ia.product_id = p.id JOIN users u ON ia.user_id = u.id \
+             WHERE ia.created_at >= ?1 AND ia.created_at <= ?2 ORDER BY ia.id DESC LIMIT ?3 OFFSET ?4",
+        )
         .map_err(|e| e.to_string())?;
 
     let adjustments = stmt
-        .query_map(params![start_date, end_date], |row| {
+        .query_map(params![start_date, end_date, page_size, offset], |row| {
             Ok(InventoryAdjustment {
                 id: row.get(0)?,
                 product_id: row.get(1)?,
@@ -64,8 +80,9 @@ pub fn find_by_date_range(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    Ok(adjustments)
+    Ok((adjustments, total))
 }
+
 
 pub fn find_by_product(db: &Database, product_id: i64) -> Result<Vec<InventoryAdjustment>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;

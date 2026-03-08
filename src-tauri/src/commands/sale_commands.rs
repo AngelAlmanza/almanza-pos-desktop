@@ -1,8 +1,11 @@
 use crate::db::repository::{cash_register_repo, product_repo, sale_repo};
 use crate::db::Database;
 use crate::models::sale::{CreateSaleRequest, DateRangeRequest, Sale, SalesReport, TopProduct};
+use crate::models::shared::PaginatedResult;
 use crate::utils::money;
 use tauri::State;
+
+const DEFAULT_PAGE_SIZE: i64 = 50;
 
 #[tauri::command]
 pub fn create_sale(db: State<Database>, request: CreateSaleRequest) -> Result<Sale, String> {
@@ -19,7 +22,10 @@ pub fn create_sale(db: State<Database>, request: CreateSaleRequest) -> Result<Sa
 
     let exchange_rate = session.exchange_rate.unwrap_or(1.0);
 
-    if request.payment_cash_mxn < 0.0 || request.payment_cash_usd < 0.0 || request.payment_transfer < 0.0 {
+    if request.payment_cash_mxn < 0.0
+        || request.payment_cash_usd < 0.0
+        || request.payment_transfer < 0.0
+    {
         return Err("Los montos de pago no pueden ser negativos".to_string());
     }
 
@@ -103,16 +109,45 @@ pub fn get_sales(db: State<Database>) -> Result<Vec<Sale>, String> {
 }
 
 #[tauri::command]
-pub fn get_sales_by_session(db: State<Database>, session_id: i64) -> Result<Vec<Sale>, String> {
-    sale_repo::find_by_session(&db, session_id)
+pub fn get_sales_by_session(
+    db: State<Database>,
+    session_id: i64,
+    page: Option<i64>,
+    page_size: Option<i64>,
+) -> Result<PaginatedResult<Sale>, String> {
+    let page = page.unwrap_or(1).max(1);
+    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, 200);
+    let (data, total) = sale_repo::find_by_session_paginated(&db, session_id, page, page_size)?;
+    Ok(PaginatedResult {
+        data,
+        total,
+        page,
+        page_size,
+    })
 }
 
 #[tauri::command]
 pub fn get_sales_by_date_range(
     db: State<Database>,
     request: DateRangeRequest,
-) -> Result<Vec<Sale>, String> {
-    sale_repo::find_by_date_range(&db, &request.start_date, &request.end_date)
+    page: Option<i64>,
+    page_size: Option<i64>,
+) -> Result<PaginatedResult<Sale>, String> {
+    let page = page.unwrap_or(1).max(1);
+    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, 200);
+    let (data, total) = sale_repo::find_by_date_range_paginated(
+        &db,
+        &request.start_date,
+        &request.end_date,
+        page,
+        page_size,
+    )?;
+    Ok(PaginatedResult {
+        data,
+        total,
+        page,
+        page_size,
+    })
 }
 
 #[tauri::command]

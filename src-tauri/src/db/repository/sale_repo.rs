@@ -104,22 +104,39 @@ pub fn find_by_id(db: &Database, id: i64) -> Result<Option<Sale>, String> {
     }
 }
 
-pub fn find_by_session(db: &Database, session_id: i64) -> Result<Vec<Sale>, String> {
+pub fn find_by_session_paginated(
+    db: &Database,
+    session_id: i64,
+    page: i64,
+    page_size: i64,
+) -> Result<(Vec<Sale>, i64), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let total: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sales s WHERE s.cash_register_session_id = ?1",
+            rusqlite::params![session_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
     let query = format!(
-        "{} WHERE s.cash_register_session_id = ?1 ORDER BY s.id DESC",
+        "{} WHERE s.cash_register_session_id = ?1 ORDER BY s.id DESC LIMIT ?2 OFFSET ?3",
         SALE_SELECT
     );
+    let offset = (page - 1) * page_size;
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
 
     let sales = stmt
-        .query_map(params![session_id], row_to_sale)
+        .query_map(params![session_id, page_size, offset], row_to_sale)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    load_items_for_sales(&conn, sales)
+    let sales = load_items_for_sales(&conn, sales)?;
+    Ok((sales, total))
 }
+
 
 pub fn find_all(db: &Database) -> Result<Vec<Sale>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
@@ -160,6 +177,40 @@ pub fn find_sale_items_by_sale_id(
         .map_err(|e| e.to_string())?;
 
     Ok(items)
+}
+
+pub fn find_by_date_range_paginated(
+    db: &Database,
+    start_date: &str,
+    end_date: &str,
+    page: i64,
+    page_size: i64,
+) -> Result<(Vec<Sale>, i64), String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let total: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sales s WHERE s.created_at >= ?1 AND s.created_at <= ?2",
+            params![start_date, end_date],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let query = format!(
+        "{} WHERE s.created_at >= ?1 AND s.created_at <= ?2 ORDER BY s.id DESC LIMIT ?3 OFFSET ?4",
+        SALE_SELECT
+    );
+    let offset = (page - 1) * page_size;
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+
+    let sales = stmt
+        .query_map(params![start_date, end_date, page_size, offset], row_to_sale)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let sales = load_items_for_sales(&conn, sales)?;
+    Ok((sales, total))
 }
 
 pub fn find_by_date_range(

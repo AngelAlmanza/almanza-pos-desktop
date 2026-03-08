@@ -63,26 +63,40 @@ pub fn find_open_by_user(
     Ok(result)
 }
 
-pub fn find_by_date_range(
+pub fn find_by_date_range_paginated(
     db: &Database,
     start_date: &str,
     end_date: &str,
-) -> Result<Vec<CashRegisterSession>, String> {
+    page: i64,
+    page_size: i64,
+) -> Result<(Vec<CashRegisterSession>, i64), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let total: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM cash_register_sessions cr \
+             WHERE cr.opened_at >= ?1 AND ((cr.status = 'closed' AND cr.closed_at <= ?2) OR (cr.status = 'open' AND cr.opened_at <= ?2))",
+            params![start_date, end_date],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let offset = (page - 1) * page_size;
     let query = format!(
-        "{} WHERE cr.opened_at >= ?1 AND ((cr.status = 'closed' AND cr.closed_at <= ?2) OR (cr.status = 'open' AND cr.opened_at <= ?2)) ORDER BY cr.id DESC",
+        "{} WHERE cr.opened_at >= ?1 AND ((cr.status = 'closed' AND cr.closed_at <= ?2) OR (cr.status = 'open' AND cr.opened_at <= ?2)) ORDER BY cr.id DESC LIMIT ?3 OFFSET ?4",
         SELECT_QUERY
     );
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
 
     let sessions = stmt
-        .query_map(params![start_date, end_date], row_to_session)
+        .query_map(params![start_date, end_date, page_size, offset], row_to_session)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    Ok(sessions)
+    Ok((sessions, total))
 }
+
 
 pub fn find_any_open(db: &Database) -> Result<Option<CashRegisterSession>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;

@@ -130,6 +130,14 @@ export interface InventoryAdjustment {
   created_at: string;
 }
 
+// Pagination
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 // Cart item for POS
 export interface CartItem {
   product: Product;

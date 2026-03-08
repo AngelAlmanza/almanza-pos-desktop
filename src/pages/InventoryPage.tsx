@@ -16,6 +16,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   Tabs,
   TextField,
@@ -46,6 +47,9 @@ export function InventoryPage() {
 
   const [startDate, setStartDate] = useState<Moment>(getMonthStart);
   const [endDate, setEndDate] = useState<Moment>(getMonthEnd);
+  const [adjPage, setAdjPage] = useState(0);
+  const [adjRowsPerPage, setAdjRowsPerPage] = useState(50);
+  const [adjTotal, setAdjTotal] = useState(0);
 
   const [form, setForm] = useState({
     product_id: '',
@@ -63,16 +67,33 @@ export function InventoryPage() {
     }
   };
 
-  const loadAdjustments = async () => {
+  const loadAdjustments = async (currentPage = adjPage, currentRowsPerPage = adjRowsPerPage) => {
     try {
-      const adjs = await InventoryService.getByDateRange({
-        start_date: startDate.format('YYYY-MM-DD') + ' 00:00:00',
-        end_date: endDate.format('YYYY-MM-DD') + ' 23:59:59',
-      });
-      setAdjustments(adjs);
+      const result = await InventoryService.getByDateRange(
+        {
+          start_date: startDate.format('YYYY-MM-DD') + ' 00:00:00',
+          end_date: endDate.format('YYYY-MM-DD') + ' 23:59:59',
+        },
+        currentPage + 1,
+        currentRowsPerPage,
+      );
+      setAdjustments(result.data);
+      setAdjTotal(result.total);
     } catch (err) {
       setError(String(err));
     }
+  };
+
+  const handleAdjPageChange = (_: unknown, newPage: number) => {
+    setAdjPage(newPage);
+    loadAdjustments(newPage, adjRowsPerPage);
+  };
+
+  const handleAdjRowsPerPageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newRows = parseInt(e.target.value, 10);
+    setAdjRowsPerPage(newRows);
+    setAdjPage(0);
+    loadAdjustments(0, newRows);
   };
 
   const loadData = async () => {
@@ -119,7 +140,8 @@ export function InventoryPage() {
   }, []);
 
   useEffect(() => {
-    loadAdjustments();
+    setAdjPage(0);
+    loadAdjustments(0, adjRowsPerPage);
   }, [startDate, endDate]);
 
   return (
@@ -211,42 +233,55 @@ export function InventoryPage() {
       )}
 
       {tab === 1 && (
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Fecha</TableCell>
-                <TableCell>Producto</TableCell>
-                <TableCell>Tipo</TableCell>
-                <TableCell align="right">Cantidad</TableCell>
-                <TableCell align="right">Stock Anterior</TableCell>
-                <TableCell align="right">Stock Nuevo</TableCell>
-                <TableCell>Razón</TableCell>
-                <TableCell>Usuario</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {adjustments.map((adj) => (
-                <TableRow key={adj.id} hover>
-                  <TableCell>{moment(adj.created_at).format('DD/MM/YYYY hh:mm A')}</TableCell>
-                  <TableCell>{adj.product_name}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={getTypeChip(adj.adjustment_type)}
-                      size="small"
-                      color={adj.adjustment_type === 'negative' ? 'error' : 'success'}
-                    />
-                  </TableCell>
-                  <TableCell align="right">{adj.quantity}</TableCell>
-                  <TableCell align="right">{adj.previous_stock}</TableCell>
-                  <TableCell align="right">{adj.new_stock}</TableCell>
-                  <TableCell>{adj.reason || '-'}</TableCell>
-                  <TableCell>{adj.user_name}</TableCell>
+        <Paper>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Fecha</TableCell>
+                  <TableCell>Producto</TableCell>
+                  <TableCell>Tipo</TableCell>
+                  <TableCell align="right">Cantidad</TableCell>
+                  <TableCell align="right">Stock Anterior</TableCell>
+                  <TableCell align="right">Stock Nuevo</TableCell>
+                  <TableCell>Razón</TableCell>
+                  <TableCell>Usuario</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {adjustments.map((adj) => (
+                  <TableRow key={adj.id} hover>
+                    <TableCell>{moment(adj.created_at).format('DD/MM/YYYY hh:mm A')}</TableCell>
+                    <TableCell>{adj.product_name}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={getTypeChip(adj.adjustment_type)}
+                        size="small"
+                        color={adj.adjustment_type === 'negative' ? 'error' : 'success'}
+                      />
+                    </TableCell>
+                    <TableCell align="right">{adj.quantity}</TableCell>
+                    <TableCell align="right">{adj.previous_stock}</TableCell>
+                    <TableCell align="right">{adj.new_stock}</TableCell>
+                    <TableCell>{adj.reason || '-'}</TableCell>
+                    <TableCell>{adj.user_name}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            component="div"
+            count={adjTotal}
+            page={adjPage}
+            onPageChange={handleAdjPageChange}
+            rowsPerPage={adjRowsPerPage}
+            onRowsPerPageChange={handleAdjRowsPerPageChange}
+            rowsPerPageOptions={[25, 50, 100]}
+            labelRowsPerPage="Filas por página:"
+            labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+          />
+        </Paper>
       )}
 
       {/* Adjustment Dialog */}
