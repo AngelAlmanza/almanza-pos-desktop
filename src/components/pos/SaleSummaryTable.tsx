@@ -18,6 +18,7 @@ import {
 } from "@mui/material";
 import { Decimal } from 'decimal.js';
 import { usePos } from '../../context/PosProvider';
+import { isBulkUnit } from '../../utils/unitConversion';
 
 export const SaleSummaryTable = () => {
   const { cart, dispatch, setError } = usePos();
@@ -94,7 +95,7 @@ export const SaleSummaryTable = () => {
                 </TableCell>
                 <TableCell align="center">
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                    <IconButton size="small" onClick={() => updateQuantity(index, -1)}>
+                    <IconButton size="small" onClick={() => updateQuantity(index, isBulkUnit(item.product.unit) ? -0.1 : -1)}>
                       <Remove fontSize="small" />
                     </IconButton>
                     <Input
@@ -104,7 +105,10 @@ export const SaleSummaryTable = () => {
                       inputProps={{ min: 0, max: item.product.stock, step: 'any' }}
                       sx={{ width: 60, textAlign: 'center' }}
                     />
-                    <IconButton size="small" onClick={() => updateQuantity(index, 1)}>
+                    <Typography variant="caption" color="text.secondary" sx={{ minWidth: 28 }}>
+                      {item.product.unit}
+                    </Typography>
+                    <IconButton size="small" onClick={() => updateQuantity(index, isBulkUnit(item.product.unit) ? 0.1 : 1)}>
                       <Add fontSize="small" />
                     </IconButton>
                   </Box>

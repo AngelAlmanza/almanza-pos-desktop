@@ -10,7 +10,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
     description: null,
     barcode: null,
     price: 10.0,
-    unit: 'pza',
+    unit: 'pieza',
     category_id: null,
     category_name: null,
     stock: 100,

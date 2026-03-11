@@ -5,6 +5,8 @@ import { SubmitEvent, useCallback, useEffect, useRef, useState } from "react";
 import { usePos } from "../../context/PosProvider";
 import { Product } from "../../models";
 import { ProductService } from "../../services/ProductService";
+import { isBulkUnit } from "../../utils/unitConversion";
+import { BulkQuantityDialog } from "./BulkQuantityDialog";
 
 export const PosSearchBar = () => {
   const { cart, dispatch, setError } = usePos();
@@ -12,6 +14,7 @@ export const PosSearchBar = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -26,6 +29,14 @@ export const PosSearchBar = () => {
     dispatch({ type: 'ADD_ITEM', payload: { product, quantity } });
     setShowSearch(false);
     setSearchTerm('');
+  };
+
+  const handleProductSelected = (product: Product) => {
+    if (isBulkUnit(product.unit)) {
+      setPendingProduct(product);
+    } else {
+      addToCart(product);
+    }
   };
 
   const handleSearch = async () => {
@@ -50,13 +61,13 @@ export const PosSearchBar = () => {
 
     try {
       const product = await ProductService.findByBarcode(barcodeInput.trim());
-      addToCart(product);
+      handleProductSelected(product);
     } catch {
       // Try searching by name/code
       try {
         const results = await ProductService.search(barcodeInput.trim());
         if (results.length === 1) {
-          addToCart(results[0]);
+          handleProductSelected(results[0]);
         } else if (results.length > 1) {
           setSearchResults(results);
           setShowSearch(true);
@@ -141,7 +152,7 @@ export const PosSearchBar = () => {
           <List>
             {searchResults.map((product) => (
               <ListItem key={product.id} disablePadding>
-                <ListItemButton onClick={() => addToCart(product)}>
+                <ListItemButton onClick={() => handleProductSelected(product)}>
                   <ListItemText
                     primary={product.name}
                     secondary={`$${product.price.toFixed(2)} | Stock: ${product.stock} ${product.unit}`}
@@ -160,6 +171,22 @@ export const PosSearchBar = () => {
           </List>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Quantity Dialog */}
+      <BulkQuantityDialog
+        open={pendingProduct !== null}
+        product={pendingProduct}
+        existingCartQty={
+          pendingProduct
+            ? (cart.find(item => item.product.id === pendingProduct.id)?.quantity ?? 0)
+            : 0
+        }
+        onConfirm={(qty) => {
+          if (pendingProduct) addToCart(pendingProduct, qty);
+          setPendingProduct(null);
+        }}
+        onCancel={() => setPendingProduct(null)}
+      />
     </>
   )
 }
