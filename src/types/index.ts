@@ -1,3 +1,5 @@
+import { FillPattern } from "exceljs";
+
 /** Roles de usuario soportados por el sistema. */
 export type UserRole = 'admin' | 'cashier';
 
@@ -15,3 +17,6 @@ export type PaymentMethod = 'cash_mxn' | 'cash_usd' | 'cash' | 'transfer' | 'mix
 
 /** Unidades de medida disponibles para productos. */
 export type ProductUnit = 'pieza' | 'kg' | 'litro' | 'metro' | 'paquete' | 'caja' | 'otro';
+
+export type XlsxColor = { argb: string };
+export type FillSolid = FillPattern & { type: 'pattern'; pattern: 'solid'; fgColor: XlsxColor };
