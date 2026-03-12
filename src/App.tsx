@@ -14,6 +14,7 @@ import { POSPage } from './pages/POSPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SalesPage } from './pages/SalesPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { UsersPage } from './pages/UsersPage';
 import { theme } from './theme';
 // Import moment lang es
@@ -49,6 +50,7 @@ function App() {
                     <Route path="/inventory" element={<InventoryPage />} />
                     <Route path="/users" element={<UsersPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
                   </Route>
                 </Route>
               </Route>

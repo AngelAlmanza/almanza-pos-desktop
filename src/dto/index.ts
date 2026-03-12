@@ -92,6 +92,22 @@ export interface DateRangeDTO {
   end_date: string;
 }
 
+// Setting DTOs
+export interface UpdateSettingDTO {
+  key: string;
+  value: string | null;
+}
+
+export interface CreateSettingDTO {
+  key: string;
+  value?: string;
+  value_type: string;
+  label: string;
+  description?: string;
+  group_name: string;
+  sort_order?: number;
+}
+
 // Inventory DTOs
 export interface CreateInventoryAdjustmentDTO {
   product_id: number;

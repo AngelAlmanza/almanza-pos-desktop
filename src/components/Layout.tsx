@@ -8,6 +8,7 @@ import {
   Menu as MenuIcon,
   People,
   PointOfSale,
+  Settings,
   ShoppingCart,
 } from "@mui/icons-material";
 import {
@@ -79,6 +80,12 @@ const navItems: NavItem[] = [
     label: "Reportes",
     path: "/reports",
     icon: <Assessment />,
+    adminOnly: true,
+  },
+  {
+    label: "Configuración",
+    path: "/settings",
+    icon: <Settings />,
     adminOnly: true,
   },
 ];

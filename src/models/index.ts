@@ -147,6 +147,21 @@ export interface PaginatedResult<T> {
   page_size: number;
 }
 
+// Setting models
+export type SettingValueType = 'string' | 'multiline' | 'number' | 'boolean' | 'image_path';
+
+export interface Setting {
+  key: string;
+  value: string | null;
+  value_type: SettingValueType;
+  label: string;
+  description: string | null;
+  group_name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // Cart item for POS
 export interface CartItem {
   product: Product;

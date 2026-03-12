@@ -11,6 +11,7 @@ use commands::category_commands::*;
 use commands::inventory_commands::*;
 use commands::product_commands::*;
 use commands::sale_commands::*;
+use commands::setting_commands::*;
 use commands::user_commands::*;
 use tauri::Manager;
 
@@ -78,6 +79,13 @@ pub fn run() {
             get_inventory_adjustments_by_date_range,
             get_inventory_adjustments_by_product,
             create_inventory_adjustment,
+            // Settings
+            get_settings,
+            update_setting,
+            create_setting,
+            delete_setting,
+            save_setting_image,
+            get_setting_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

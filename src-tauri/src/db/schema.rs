@@ -89,6 +89,19 @@ pub fn initialize(db: &Database) -> Result<(), String> {
             created_at TEXT DEFAULT (datetime('now', 'localtime'))
         );
 
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            value_type TEXT NOT NULL DEFAULT 'string'
+                CHECK(value_type IN ('string', 'multiline', 'number', 'boolean', 'image_path')),
+            label TEXT NOT NULL,
+            description TEXT,
+            group_name TEXT NOT NULL DEFAULT 'general',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+
         CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
         CREATE INDEX IF NOT EXISTS idx_sales_session ON sales(cash_register_session_id);
         CREATE INDEX IF NOT EXISTS idx_sales_created ON sales(created_at);
@@ -100,6 +113,7 @@ pub fn initialize(db: &Database) -> Result<(), String> {
 
     run_migrations(&conn)?;
     seed_default_user(&conn)?;
+    seed_default_settings(&conn)?;
 
     Ok(())
 }
@@ -123,6 +137,55 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
                     return Err(format!("Migration error: {}", msg));
                 }
             }
+        }
+    }
+
+    Ok(())
+}
+
+fn seed_default_settings(conn: &rusqlite::Connection) -> Result<(), String> {
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM settings", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    if count == 0 {
+        let defaults: &[(&str, &str, &str, &str, &str, i64)] = &[
+            (
+                "business_name",
+                "",
+                "string",
+                "Nombre del negocio",
+                "general",
+                10,
+            ),
+            ("business_address", "", "string", "Dirección", "general", 20),
+            ("business_phone", "", "string", "Teléfono", "general", 30),
+            ("business_rfc", "", "string", "RFC", "general", 40),
+            ("business_logo", "", "image_path", "Logotipo", "general", 50),
+            (
+                "ticket_header",
+                "",
+                "multiline",
+                "Encabezado del ticket",
+                "ticket",
+                10,
+            ),
+            (
+                "ticket_footer",
+                "",
+                "multiline",
+                "Pie del ticket",
+                "ticket",
+                20,
+            ),
+        ];
+
+        for (key, value, value_type, label, group_name, sort_order) in defaults {
+            conn.execute(
+                "INSERT INTO settings (key, value, value_type, label, group_name, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![key, value, value_type, label, group_name, sort_order],
+            )
+            .map_err(|e| e.to_string())?;
         }
     }
 

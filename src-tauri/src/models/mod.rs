@@ -3,5 +3,6 @@ pub mod category;
 pub mod inventory;
 pub mod product;
 pub mod sale;
+pub mod setting;
 pub mod shared;
 pub mod user;
