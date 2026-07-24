@@ -1,4 +1,5 @@
 import { Decimal } from 'decimal.js';
+import type { Product } from '../models';
 import type { ProductUnit } from '../types';
 
 type NumericValue = Decimal.Value;
@@ -179,6 +180,10 @@ export function getUnitConfig(unit: ProductUnit): SubUnitConfig | null {
 
 export function supportsBulkQuantityInput(unit: ProductUnit): boolean {
   return getUnitConfig(unit) !== null;
+}
+
+export function usesBulkQuantityInput(product: Pick<Product, 'is_bulk' | 'unit'>): boolean {
+  return product.is_bulk;
 }
 
 export function isBulkUnit(unit: ProductUnit): boolean {

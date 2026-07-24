@@ -42,6 +42,7 @@ export interface CreateProductDTO {
   barcode?: string;
   price: number;
   unit: ProductUnit;
+  is_bulk: boolean;
   category_id?: number;
   stock?: number;
   min_stock?: number;
@@ -54,6 +55,7 @@ export interface UpdateProductDTO {
   barcode?: string;
   price?: number;
   unit?: ProductUnit;
+  is_bulk?: boolean;
   category_id?: number;
   min_stock?: number;
   active?: boolean;

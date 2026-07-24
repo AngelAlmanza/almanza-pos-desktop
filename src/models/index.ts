@@ -39,6 +39,7 @@ export interface Product {
   barcode: string | null;
   price: number;
   unit: ProductUnit;
+  is_bulk: boolean;
   category_id: number | null;
   category_name: string | null;
   stock: number;

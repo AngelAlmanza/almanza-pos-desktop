@@ -8,6 +8,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   MenuItem,
   Paper,
@@ -30,6 +31,7 @@ import { CategoryService } from "../services/CategoryService";
 import { ProductService } from "../services/ProductService";
 import type { ProductUnit } from "../types";
 import { cleanError } from "../utils/CleanError";
+import { supportsBulkQuantityInput } from "../utils/unitConversion";
 
 export function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -49,6 +51,7 @@ export function ProductsPage() {
     barcode: string;
     price: string;
     unit: ProductUnit;
+    is_bulk: boolean;
     category_id: string;
     stock: string;
     min_stock: string;
@@ -58,6 +61,7 @@ export function ProductsPage() {
     barcode: "",
     price: "",
     unit: "pieza",
+    is_bulk: false,
     category_id: "",
     stock: "",
     min_stock: "",
@@ -83,6 +87,7 @@ export function ProductsPage() {
       barcode: "",
       price: "",
       unit: "pieza",
+      is_bulk: false,
       category_id: "",
       stock: "",
       min_stock: "",
@@ -99,6 +104,7 @@ export function ProductsPage() {
         barcode: product.barcode || "",
         price: String(product.price),
         unit: product.unit,
+        is_bulk: product.is_bulk,
         category_id: product.category_id ? String(product.category_id) : "",
         stock: String(product.stock),
         min_stock: String(product.min_stock),
@@ -119,6 +125,7 @@ export function ProductsPage() {
           barcode: form.barcode || undefined,
           price: form.price ? parseFloat(form.price) : undefined,
           unit: form.unit || undefined,
+          is_bulk: form.is_bulk,
           category_id: form.category_id
             ? parseInt(form.category_id)
             : undefined,
@@ -132,6 +139,7 @@ export function ProductsPage() {
           barcode: form.barcode || undefined,
           price: parseFloat(form.price),
           unit: form.unit,
+          is_bulk: form.is_bulk,
           category_id: form.category_id
             ? parseInt(form.category_id)
             : undefined,
@@ -205,6 +213,8 @@ export function ProductsPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const hasValidBulkUnit = !form.is_bulk || supportsBulkQuantityInput(form.unit);
 
   return (
     <Box>
@@ -294,7 +304,24 @@ export function ProductsPage() {
                 <TableCell
                   sx={{ color: "text.secondary", fontSize: "0.8125rem" }}
                 >
-                  {product.unit}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                    <Chip
+                      label={product.unit.toLocaleUpperCase()}
+                      size="small"
+                      color="secondary"
+                      variant="outlined"
+                      sx={{ height: 22, fontSize: "0.6875rem" }}
+                    />
+                    {product.is_bulk && (
+                      <Chip
+                        label="A granel"
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                        sx={{ height: 22, fontSize: "0.6875rem" }}
+                      />
+                    )}
+                  </Box>
                 </TableCell>
                 <TableCell align="right">
                   <Chip
@@ -429,6 +456,43 @@ export function ProductsPage() {
                 ))}
               </TextField>
             </Box>
+            <Box
+              sx={{
+                px: 1.5,
+                py: 1,
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1.5,
+              }}
+            >
+              <FormControlLabel
+                sx={{ m: 0, alignItems: "flex-start" }}
+                control={
+                  <Switch
+                    size="small"
+                    checked={form.is_bulk}
+                    onChange={(e) =>
+                      setForm({ ...form, is_bulk: e.target.checked })
+                    }
+                  />
+                }
+                label={
+                  <Box sx={{ ml: 0.5 }}>
+                    <Typography variant="body2" fontWeight={600}>
+                      Producto a granel
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Permite capturar la venta por {form.unit}, subunidad o monto.
+                    </Typography>
+                  </Box>
+                }
+              />
+            </Box>
+            {form.is_bulk && !hasValidBulkUnit && (
+              <Alert severity="warning">
+                Los productos a granel deben usar kg, litro o metro como unidad base.
+              </Alert>
+            )}
             <TextField
               select
               label="Categoría"
@@ -457,7 +521,7 @@ export function ProductsPage() {
                   size="small"
                   slotProps={{
                     htmlInput: {
-                      step: "0.01",
+                      step: form.is_bulk ? "0.001" : "1",
                       min: "0",
                     },
                   }}
@@ -473,7 +537,7 @@ export function ProductsPage() {
                   size="small"
                   slotProps={{
                     htmlInput: {
-                      step: "0.01",
+                      step: form.is_bulk ? "0.001" : "1",
                       min: "0",
                     },
                   }}
@@ -492,7 +556,7 @@ export function ProductsPage() {
                 size="small"
                 slotProps={{
                   htmlInput: {
-                    step: "0.01",
+                    step: form.is_bulk ? "0.001" : "1",
                     min: "0",
                   },
                 }}
@@ -507,7 +571,7 @@ export function ProductsPage() {
           <Button
             variant="contained"
             onClick={handleSave}
-            disabled={!form.name || !form.price}
+            disabled={!form.name || !form.price || !hasValidBulkUnit}
           >
             {editing ? "Guardar" : "Crear"}
           </Button>

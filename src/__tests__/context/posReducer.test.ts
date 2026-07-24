@@ -11,6 +11,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
     barcode: null,
     price: 10.0,
     unit: 'pieza',
+    is_bulk: false,
     category_id: null,
     category_name: null,
     stock: 100,
@@ -64,7 +65,7 @@ describe('posReducer – ADD_ITEM', () => {
 
   it('handles fractional quantities (kg/liters)', () => {
     // $89.50/kg * 1.5 kg = $134.25
-    const product = makeProduct({ price: 89.50, unit: 'kg', stock: 10 });
+    const product = makeProduct({ price: 89.50, unit: 'kg', is_bulk: true, stock: 10 });
     const state = posReducer(emptyState, {
       type: 'ADD_ITEM',
       payload: { product, quantity: 1.5 },
@@ -74,7 +75,7 @@ describe('posReducer – ADD_ITEM', () => {
   });
 
   it('rounds weighted quantities to 3 decimals before calculating subtotal', () => {
-    const product = makeProduct({ price: 80, unit: 'kg', stock: 10 });
+    const product = makeProduct({ price: 80, unit: 'kg', is_bulk: true, stock: 10 });
     const state = posReducer(emptyState, {
       type: 'ADD_ITEM',
       payload: { product, quantity: 0.3125 },

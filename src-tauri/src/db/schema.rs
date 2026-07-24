@@ -30,6 +30,7 @@ pub fn initialize(db: &Database) -> Result<(), String> {
             barcode TEXT UNIQUE,
             price REAL NOT NULL,
             unit TEXT NOT NULL DEFAULT 'pieza',
+            is_bulk INTEGER NOT NULL DEFAULT 0,
             category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
             stock REAL DEFAULT 0,
             min_stock REAL DEFAULT 0,
@@ -140,7 +141,74 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         }
     }
 
+    migrate_products_is_bulk(conn)?;
+
     Ok(())
+}
+
+fn migrate_products_is_bulk(conn: &rusqlite::Connection) -> Result<(), String> {
+    match conn.execute(
+        "ALTER TABLE products ADD COLUMN is_bulk INTEGER NOT NULL DEFAULT 0",
+        [],
+    ) {
+        Ok(_) => {
+            conn.execute(
+                "UPDATE products SET is_bulk = 1 WHERE unit IN ('kg', 'litro', 'metro')",
+                [],
+            )
+            .map_err(|e| format!("Migration backfill error: {}", e))?;
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            if !msg.contains("duplicate column name") {
+                return Err(format!("Migration error: {}", msg));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::migrate_products_is_bulk;
+    use rusqlite::{params, Connection};
+
+    #[test]
+    fn bulk_migration_backfills_legacy_units_only_when_column_is_added() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE products (
+                id INTEGER PRIMARY KEY,
+                unit TEXT NOT NULL
+            );
+            INSERT INTO products (id, unit) VALUES
+                (1, 'kg'), (2, 'litro'), (3, 'metro'), (4, 'pieza');",
+        )
+        .unwrap();
+
+        migrate_products_is_bulk(&conn).unwrap();
+
+        let flags: Vec<(i64, i64)> = conn
+            .prepare("SELECT id, is_bulk FROM products ORDER BY id")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(flags, vec![(1, 1), (2, 1), (3, 1), (4, 0)]);
+
+        conn.execute("UPDATE products SET is_bulk = 0 WHERE id = ?1", params![1])
+            .unwrap();
+        migrate_products_is_bulk(&conn).unwrap();
+
+        let customized_flag: i64 = conn
+            .query_row("SELECT is_bulk FROM products WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(customized_flag, 0);
+    }
 }
 
 fn seed_default_settings(conn: &rusqlite::Connection) -> Result<(), String> {

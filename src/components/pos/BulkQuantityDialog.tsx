@@ -12,7 +12,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Product } from '../../models';
 import {
   hasSufficientStock,
@@ -35,6 +35,8 @@ interface BulkQuantityDialogProps {
   open: boolean;
   product: Product | null;
   existingCartQty: number;
+  mode?: 'add' | 'edit';
+  initialQuantity?: number;
   onConfirm: (qty: number) => void;
   onCancel: () => void;
 }
@@ -48,11 +50,20 @@ export const BulkQuantityDialog = ({
   open,
   product,
   existingCartQty,
+  mode = 'add',
+  initialQuantity = 0,
   onConfirm,
   onCancel,
 }: BulkQuantityDialogProps) => {
   const [inputMode, setInputMode] = useState<InputMode>('base');
   const [inputValue, setInputValue] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setInputMode('base');
+      setInputValue(initialQuantity > 0 ? String(initialQuantity) : '');
+    }
+  }, [initialQuantity, open, product?.id]);
 
   const config = product ? getUnitConfig(product.unit) : null;
 
@@ -113,6 +124,8 @@ export const BulkQuantityDialog = ({
 
   const handleConfirm = () => {
     if (quantityInBase && isValid) {
+      setInputMode('base');
+      setInputValue('');
       onConfirm(quantityInBase);
     }
   };
@@ -134,7 +147,9 @@ export const BulkQuantityDialog = ({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Agregar Producto a Granel</DialogTitle>
+      <DialogTitle>
+        {mode === 'edit' ? 'Editar cantidad a granel' : 'Agregar producto a granel'}
+      </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
         {/* Product info */}
         {product && config && (
@@ -217,7 +232,7 @@ export const BulkQuantityDialog = ({
         )}
 
         {/* Preview */}
-        {quantityInBase && estimatedTotal && config && (
+        {quantityInBase !== null && estimatedTotal !== null && config && (
           <Box
             sx={{
               p: 2,
@@ -259,7 +274,7 @@ export const BulkQuantityDialog = ({
           disabled={!isValid}
           onClick={handleConfirm}
         >
-          Agregar al carrito
+          {mode === 'edit' ? 'Actualizar cantidad' : 'Agregar al carrito'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -67,6 +67,20 @@ pub fn create_sale(db: State<Database>, request: CreateSaleRequest) -> AppResult
 
         let quantity = money::round3(item_req.quantity);
 
+        if quantity <= 0.0 {
+            return Err(AppError::Validation(format!(
+                "La cantidad de '{}' debe ser mayor que cero",
+                product.name
+            )));
+        }
+
+        if !product.is_bulk && quantity.fract() != 0.0 {
+            return Err(AppError::Validation(format!(
+                "El producto '{}' solo acepta cantidades enteras",
+                product.name
+            )));
+        }
+
         if product.stock < quantity {
             return Err(AppError::Validation(format!(
                 "Stock insuficiente para '{}'. Disponible: {}, Solicitado: {}",

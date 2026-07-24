@@ -105,10 +105,11 @@ pub fn create(
     let sale_id = tx.last_insert_rowid();
 
     for item in items {
+        let quantity = money::round3(item.2);
         tx.execute(
             "INSERT INTO sale_items (sale_id, product_id, product_name, quantity, unit_price, subtotal) \
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![sale_id, item.0, item.1, item.2, item.3, item.4],
+            params![sale_id, item.0, item.1, quantity, item.3, item.4],
         )?;
 
         let current_stock: f64 = tx
@@ -119,14 +120,15 @@ pub fn create(
             )
             .map_err(|_| AppError::NotFound(format!("Producto '{}' no encontrado", item.1)))?;
 
-        if current_stock < item.2 {
+        let available_stock = money::round3(current_stock);
+        if available_stock < quantity {
             return Err(AppError::Validation(format!(
                 "Stock insuficiente para '{}'. Disponible: {}, Solicitado: {}",
-                item.1, current_stock, item.2
+                item.1, available_stock, quantity
             )));
         }
 
-        let new_stock = money::sub_stock(current_stock, item.2);
+        let new_stock = money::sub_stock(available_stock, quantity);
         tx.execute(
             "UPDATE products SET stock = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
             params![new_stock, item.0],
@@ -276,19 +278,28 @@ pub fn get_top_products(
 
 pub fn cancel_sale(db: &Database, sale_id: i64) -> AppResult<()> {
     let mut conn = db.conn.lock()?;
+    let tx = conn.transaction()?;
 
-    // Read items before opening the transaction so the statement borrow does not
-    // conflict with the mutable borrow required by conn.transaction().
+    let status: SaleStatus = tx
+        .query_row(
+            "SELECT status FROM sales WHERE id = ?1",
+            params![sale_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| AppError::NotFound("Venta no encontrada".to_string()))?;
+
+    if status == SaleStatus::Cancelled {
+        return Err(AppError::Conflict("La venta ya está cancelada".to_string()));
+    }
+
     let items: Vec<(i64, f64)> = {
         let mut stmt =
-            conn.prepare("SELECT product_id, quantity FROM sale_items WHERE sale_id = ?1")?;
+            tx.prepare("SELECT product_id, quantity FROM sale_items WHERE sale_id = ?1")?;
         let rows = stmt
             .query_map(params![sale_id], |row| Ok((row.get(0)?, row.get(1)?)))?
             .collect::<Result<Vec<_>, _>>()?;
         rows
     };
-
-    let tx = conn.transaction()?;
 
     for (product_id, quantity) in items {
         let current_stock: f64 = tx
@@ -301,7 +312,7 @@ pub fn cancel_sale(db: &Database, sale_id: i64) -> AppResult<()> {
                 AppError::NotFound(format!("Producto con ID {} no encontrado", product_id))
             })?;
 
-        let new_stock = money::add_stock(current_stock, money::round3(quantity));
+        let new_stock = money::add_stock(money::round3(current_stock), money::round3(quantity));
         tx.execute(
             "UPDATE products SET stock = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
             params![new_stock, product_id],
@@ -315,4 +326,98 @@ pub fn cancel_sale(db: &Database, sale_id: i64) -> AppResult<()> {
 
     tx.commit()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{cancel_sale, create};
+    use crate::db::Database;
+    use rusqlite::Connection;
+    use std::sync::Mutex;
+
+    fn test_database(stock: f64) -> Database {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                full_name TEXT NOT NULL
+            );
+            CREATE TABLE products (
+                id INTEGER PRIMARY KEY,
+                stock REAL NOT NULL,
+                updated_at TEXT
+            );
+            CREATE TABLE sales (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cash_register_session_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                total REAL NOT NULL,
+                payment_method TEXT NOT NULL,
+                payment_amount REAL NOT NULL,
+                payment_cash_mxn REAL NOT NULL,
+                payment_cash_usd REAL NOT NULL,
+                payment_transfer REAL NOT NULL,
+                exchange_rate REAL,
+                change_amount REAL NOT NULL,
+                status TEXT NOT NULL DEFAULT 'completed',
+                created_at TEXT NOT NULL DEFAULT '2026-01-01 00:00:00'
+            );
+            CREATE TABLE sale_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sale_id INTEGER NOT NULL,
+                product_id INTEGER NOT NULL,
+                product_name TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                unit_price REAL NOT NULL,
+                subtotal REAL NOT NULL
+            );
+            INSERT INTO users (id, full_name) VALUES (1, 'Test User');",
+        )
+        .unwrap();
+        conn.execute("INSERT INTO products (id, stock) VALUES (1, ?1)", [stock])
+            .unwrap();
+
+        Database {
+            conn: Mutex::new(conn),
+        }
+    }
+
+    fn product_stock(db: &Database) -> f64 {
+        db.conn
+            .lock()
+            .unwrap()
+            .query_row("SELECT stock FROM products WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn bulk_sale_and_cancellation_keep_stock_rounded_without_double_return() {
+        let db = test_database(1.0);
+        let sale = create(
+            &db,
+            1,
+            1,
+            33.30,
+            "cash_mxn",
+            33.30,
+            33.30,
+            0.0,
+            0.0,
+            None,
+            0.0,
+            &[(1, "Producto a granel".to_string(), 0.333, 100.0, 33.30)],
+        )
+        .unwrap();
+
+        assert_eq!(sale.items[0].quantity, 0.333);
+        assert_eq!(product_stock(&db), 0.667);
+
+        cancel_sale(&db, sale.id).unwrap();
+        assert_eq!(product_stock(&db), 1.0);
+
+        assert!(cancel_sale(&db, sale.id).is_err());
+        assert_eq!(product_stock(&db), 1.0);
+    }
 }

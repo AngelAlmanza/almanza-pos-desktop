@@ -4,6 +4,18 @@ use crate::error::{AppError, AppResult};
 use crate::models::product::{CreateProductRequest, Product, UpdateProductRequest};
 use tauri::State;
 
+const BULK_UNITS: [&str; 3] = ["kg", "litro", "metro"];
+
+fn validate_bulk_configuration(is_bulk: bool, unit: &str) -> AppResult<()> {
+    if is_bulk && !BULK_UNITS.contains(&unit) {
+        return Err(AppError::Validation(
+            "Los productos a granel deben usar kg, litro o metro como unidad base".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn get_products(db: State<Database>) -> AppResult<Vec<Product>> {
     product_repo::find_all(&db)
@@ -54,6 +66,8 @@ pub fn create_product(db: State<Database>, request: CreateProductRequest) -> App
         ));
     }
 
+    validate_bulk_configuration(request.is_bulk, &request.unit)?;
+
     if let Some(ref barcode) = request.barcode {
         if product_repo::find_by_barcode(&db, barcode)?.is_some() {
             return Err(AppError::Conflict(format!(
@@ -70,6 +84,7 @@ pub fn create_product(db: State<Database>, request: CreateProductRequest) -> App
         request.barcode.as_deref(),
         request.price,
         &request.unit,
+        request.is_bulk,
         request.category_id,
         request.stock.unwrap_or(0.0),
         request.min_stock.unwrap_or(0.0),
@@ -78,6 +93,9 @@ pub fn create_product(db: State<Database>, request: CreateProductRequest) -> App
 
 #[tauri::command]
 pub fn update_product(db: State<Database>, request: UpdateProductRequest) -> AppResult<Product> {
+    let current = product_repo::find_by_id(&db, request.id)?
+        .ok_or_else(|| AppError::NotFound("Producto no encontrado".to_string()))?;
+
     if let Some(ref name) = request.name {
         if name.trim().is_empty() {
             return Err(AppError::Validation(
@@ -100,6 +118,10 @@ pub fn update_product(db: State<Database>, request: UpdateProductRequest) -> App
         }
     }
 
+    let resulting_unit = request.unit.as_deref().unwrap_or(&current.unit);
+    let resulting_is_bulk = request.is_bulk.unwrap_or(current.is_bulk);
+    validate_bulk_configuration(resulting_is_bulk, resulting_unit)?;
+
     if let Some(ref barcode) = request.barcode {
         let existing = product_repo::find_by_barcode(&db, barcode)?;
         if existing.is_some() && existing.unwrap().id != request.id {
@@ -118,6 +140,7 @@ pub fn update_product(db: State<Database>, request: UpdateProductRequest) -> App
         request.barcode.as_deref(),
         request.price,
         request.unit.as_deref(),
+        request.is_bulk,
         request.category_id,
         request.min_stock,
         request.active,
@@ -127,4 +150,27 @@ pub fn update_product(db: State<Database>, request: UpdateProductRequest) -> App
 #[tauri::command]
 pub fn delete_product(db: State<Database>, id: i64) -> AppResult<()> {
     product_repo::delete(&db, id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_bulk_configuration;
+
+    #[test]
+    fn accepts_supported_bulk_units() {
+        for unit in ["kg", "litro", "metro"] {
+            assert!(validate_bulk_configuration(true, unit).is_ok());
+        }
+    }
+
+    #[test]
+    fn rejects_discrete_units_for_bulk_products() {
+        assert!(validate_bulk_configuration(true, "pieza").is_err());
+    }
+
+    #[test]
+    fn non_bulk_products_do_not_require_a_convertible_unit() {
+        assert!(validate_bulk_configuration(false, "pieza").is_ok());
+        assert!(validate_bulk_configuration(false, "kg").is_ok());
+    }
 }

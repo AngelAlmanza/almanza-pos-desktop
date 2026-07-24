@@ -11,20 +11,21 @@ fn row_to_product(row: &rusqlite::Row) -> rusqlite::Result<Product> {
         barcode: row.get(3)?,
         price: row.get(4)?,
         unit: row.get(5)?,
-        category_id: row.get(6)?,
-        category_name: row.get(7)?,
-        stock: row.get(8)?,
-        min_stock: row.get(9)?,
-        active: row.get::<_, i32>(10)? == 1,
-        created_at: row.get(11)?,
-        updated_at: row.get(12)?,
+        is_bulk: row.get::<_, i32>(6)? == 1,
+        category_id: row.get(7)?,
+        category_name: row.get(8)?,
+        stock: row.get(9)?,
+        min_stock: row.get(10)?,
+        active: row.get::<_, i32>(11)? == 1,
+        created_at: row.get(12)?,
+        updated_at: row.get(13)?,
     })
 }
 
 const SELECT_QUERY: &str = "\
-    SELECT p.id, p.name, p.description, p.barcode, p.price, p.unit, \
-           p.category_id, c.name as category_name, p.stock, p.min_stock, \
-           p.active, p.created_at, p.updated_at \
+    SELECT p.id, p.name, p.description, p.barcode, p.price, p.unit, p.is_bulk, \
+        p.category_id, c.name as category_name, p.stock, p.min_stock, \
+        p.active, p.created_at, p.updated_at \
     FROM products p LEFT JOIN categories c ON p.category_id = c.id";
 
 pub fn find_all(db: &Database) -> AppResult<Vec<Product>> {
@@ -61,7 +62,9 @@ pub fn find_by_id(db: &Database, id: i64) -> AppResult<Option<Product>> {
 pub fn find_by_barcode(db: &Database, barcode: &str) -> AppResult<Option<Product>> {
     let conn = db.conn.lock()?;
     let query = format!("{} WHERE p.barcode = ?1 AND p.active = 1", SELECT_QUERY);
-    let result = conn.query_row(&query, params![barcode], row_to_product).ok();
+    let result = conn
+        .query_row(&query, params![barcode], row_to_product)
+        .ok();
     Ok(result)
 }
 
@@ -89,15 +92,16 @@ pub fn create(
     barcode: Option<&str>,
     price: f64,
     unit: &str,
+    is_bulk: bool,
     category_id: Option<i64>,
     stock: f64,
     min_stock: f64,
 ) -> AppResult<Product> {
     let conn = db.conn.lock()?;
     conn.execute(
-        "INSERT INTO products (name, description, barcode, price, unit, category_id, stock, min_stock) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![name, description, barcode, price, unit, category_id, stock, min_stock],
+        "INSERT INTO products (name, description, barcode, price, unit, is_bulk, category_id, stock, min_stock) \
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![name, description, barcode, price, unit, is_bulk, category_id, stock, min_stock],
     )?;
 
     let id = conn.last_insert_rowid();
@@ -114,6 +118,7 @@ pub fn update(
     barcode: Option<&str>,
     price: Option<f64>,
     unit: Option<&str>,
+    is_bulk: Option<bool>,
     category_id: Option<i64>,
     min_stock: Option<f64>,
     active: Option<bool>,
@@ -150,6 +155,13 @@ pub fn update(
             params![val, id],
         )?;
     }
+    if let Some(val) = is_bulk {
+        let is_bulk_int = if val { 1 } else { 0 };
+        conn.execute(
+            "UPDATE products SET is_bulk = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
+            params![is_bulk_int, id],
+        )?;
+    }
     if category_id.is_some() {
         conn.execute(
             "UPDATE products SET category_id = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
@@ -171,8 +183,7 @@ pub fn update(
     }
 
     drop(conn);
-    find_by_id(db, id)?
-        .ok_or_else(|| AppError::NotFound("Producto no encontrado".to_string()))
+    find_by_id(db, id)?.ok_or_else(|| AppError::NotFound("Producto no encontrado".to_string()))
 }
 
 pub fn delete(db: &Database, id: i64) -> AppResult<()> {
@@ -203,4 +214,68 @@ pub fn delete(db: &Database, id: i64) -> AppResult<()> {
 
     conn.execute("DELETE FROM products WHERE id = ?1", params![id])?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{create, update};
+    use crate::db::Database;
+    use rusqlite::Connection;
+    use std::sync::Mutex;
+
+    fn test_database() -> Database {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE categories (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL
+            );
+            CREATE TABLE products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                barcode TEXT,
+                price REAL NOT NULL,
+                unit TEXT NOT NULL,
+                is_bulk INTEGER NOT NULL DEFAULT 0,
+                category_id INTEGER,
+                stock REAL NOT NULL DEFAULT 0,
+                min_stock REAL NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT '2026-01-01 00:00:00',
+                updated_at TEXT NOT NULL DEFAULT '2026-01-01 00:00:00'
+            );
+            CREATE TABLE sale_items (product_id INTEGER);
+            CREATE TABLE inventory_adjustments (product_id INTEGER);",
+        )
+        .unwrap();
+
+        Database {
+            conn: Mutex::new(conn),
+        }
+    }
+
+    #[test]
+    fn creates_and_updates_the_explicit_bulk_flag() {
+        let db = test_database();
+        let created = create(&db, "Tomate", None, None, 42.50, "kg", true, None, 5.0, 0.5).unwrap();
+        assert!(created.is_bulk);
+
+        let updated = update(
+            &db,
+            created.id,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(false),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert!(!updated.is_bulk);
+        assert_eq!(updated.unit, "kg");
+    }
 }

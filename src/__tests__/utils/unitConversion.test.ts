@@ -12,6 +12,7 @@ import {
   supportsBulkQuantityInput,
   toBase,
   UnitConversionError,
+  usesBulkQuantityInput,
 } from '../../utils/unitConversion';
 import type { ProductUnit } from '../../types';
 
@@ -93,6 +94,11 @@ describe('getCompatibleUnits', () => {
 });
 
 describe('bulk product helpers', () => {
+  it('uses the explicit product flag instead of inferring behavior from the unit', () => {
+    expect(usesBulkQuantityInput({ is_bulk: true, unit: 'kg' })).toBe(true);
+    expect(usesBulkQuantityInput({ is_bulk: false, unit: 'kg' })).toBe(false);
+  });
+
   it.each<[ProductUnit, boolean]>([
     ['kg', true],
     ['litro', true],

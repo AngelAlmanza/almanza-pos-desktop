@@ -1,11 +1,11 @@
 import { QrCodeScanner, Search } from "@mui/icons-material";
-import { Card, CardContent, Chip, Dialog, DialogContent, DialogTitle, IconButton, InputAdornment, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
+import { Box, Card, CardContent, Chip, Dialog, DialogContent, DialogTitle, IconButton, InputAdornment, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
 import { SubmitEvent, useCallback, useEffect, useRef, useState } from "react";
 import { usePos } from "../../context/PosProvider";
 import { Product } from "../../models";
 import { ProductService } from "../../services/ProductService";
 import { addQuantity, hasSufficientStock, roundQuantity } from "../../utils/money";
-import { supportsBulkQuantityInput } from "../../utils/unitConversion";
+import { usesBulkQuantityInput } from "../../utils/unitConversion";
 import { BulkQuantityDialog } from "./BulkQuantityDialog";
 
 export const PosSearchBar = () => {
@@ -36,7 +36,7 @@ export const PosSearchBar = () => {
   };
 
   const handleProductSelected = (product: Product) => {
-    if (supportsBulkQuantityInput(product.unit)) {
+    if (usesBulkQuantityInput(product)) {
       setPendingProduct(product);
     } else {
       addToCart(product);
@@ -161,9 +161,14 @@ export const PosSearchBar = () => {
                     primary={product.name}
                     secondary={`$${product.price.toFixed(2)} | Stock: ${product.stock} ${product.unit}`}
                   />
-                  {product.barcode && (
-                    <Chip label={product.barcode} size="small" variant="outlined" />
-                  )}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    {product.is_bulk && (
+                      <Chip label="A granel" size="small" color="primary" variant="outlined" />
+                    )}
+                    {product.barcode && (
+                      <Chip label={product.barcode} size="small" variant="outlined" />
+                    )}
+                  </Box>
                 </ListItemButton>
               </ListItem>
             ))}
