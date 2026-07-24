@@ -47,7 +47,11 @@ pub fn build_sale_ticket(
             .iter()
             .map(|item| TicketItem {
                 description: item.product_name.clone(),
-                quantity: item.quantity,
+                base_quantity: item.quantity,
+                base_unit: item.base_unit.clone(),
+                input_mode: item.input_mode.map(|mode| mode.as_str().to_string()),
+                input_value: item.input_value,
+                input_unit: item.input_unit.clone(),
                 unit_price: item.unit_price,
                 total: item.subtotal,
             })
@@ -69,5 +73,51 @@ fn payment_method_label(method: &str) -> &'static str {
         "transfer" => "Transferencia",
         "mixed" => "Mixto",
         _ => "Otro",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_sale_ticket;
+    use crate::models::sale::{Sale, SaleInputMode, SaleItem, SaleStatus};
+
+    #[test]
+    fn maps_purchase_metadata_to_the_ticket_snapshot() {
+        let sale = Sale {
+            id: 1,
+            cash_register_session_id: 1,
+            user_id: 1,
+            user_name: Some("Cajero".to_string()),
+            total: 20.0,
+            payment_method: "cash_mxn".to_string(),
+            payment_amount: 20.0,
+            payment_cash_mxn: 20.0,
+            payment_cash_usd: 0.0,
+            payment_transfer: 0.0,
+            exchange_rate: None,
+            change_amount: 0.0,
+            status: SaleStatus::Completed,
+            created_at: "2026-01-01".to_string(),
+            items: vec![SaleItem {
+                id: 1,
+                sale_id: 1,
+                product_id: 1,
+                product_name: "Tomate".to_string(),
+                quantity: 0.2,
+                base_unit: Some("kg".to_string()),
+                input_mode: Some(SaleInputMode::Sub),
+                input_value: Some(200.0),
+                input_unit: Some("g".to_string()),
+                unit_price: 100.0,
+                subtotal: 20.0,
+            }],
+        };
+
+        let ticket = build_sale_ticket(&sale, None, None, None, None);
+        assert_eq!(ticket.items[0].base_quantity, 0.2);
+        assert_eq!(ticket.items[0].base_unit.as_deref(), Some("kg"));
+        assert_eq!(ticket.items[0].input_mode.as_deref(), Some("sub"));
+        assert_eq!(ticket.items[0].input_value, Some(200.0));
+        assert_eq!(ticket.items[0].input_unit.as_deref(), Some("g"));
     }
 }

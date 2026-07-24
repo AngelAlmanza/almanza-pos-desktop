@@ -395,19 +395,32 @@ export class ReportGenerator {
       { width: 10 },
       { width: 22 },
       { width: 30 },
-      { width: 12 },
+      { width: 18 },
+      { width: 20 },
+      { width: 16 },
+      { width: 18 },
       { width: 16 },
       { width: 13 },
     ];
 
-    r = addSheetBrandHeader(wsDetalle, startDate, endDate, 'Detalle de Ítems', 6);
+    r = addSheetBrandHeader(wsDetalle, startDate, endDate, 'Detalle de Ítems', 9);
 
-    wsDetalle.mergeCells(r, 1, r, 6);
+    wsDetalle.mergeCells(r, 1, r, 9);
     applyBrandHeader(wsDetalle, r, 1, 'PRODUCTOS POR VENTA', XL_ACCENT);
     wsDetalle.getRow(r).height = 18;
     r++;
 
-    const detalleHeaders = ['Venta ID', 'Fecha', 'Producto', 'Cantidad', 'Precio Unitario', 'Subtotal'];
+    const detalleHeaders = [
+      'Venta ID',
+      'Fecha',
+      'Producto',
+      'Cantidad comprada',
+      'Unidad utilizada',
+      'Cantidad base',
+      'Unidad base',
+      'Precio base',
+      'Total',
+    ];
     detalleHeaders.forEach((h, i) => {
       const cell = wsDetalle.getCell(r, i + 1);
       cell.value = h;
@@ -426,23 +439,34 @@ export class ReportGenerator {
           wsDetalle.getCell(r, 4),
           wsDetalle.getCell(r, 5),
           wsDetalle.getCell(r, 6),
+          wsDetalle.getCell(r, 7),
+          wsDetalle.getCell(r, 8),
+          wsDetalle.getCell(r, 9),
         ];
         cells[0].value = sale.id;
         cells[1].value = new Date(sale.created_at).toLocaleString('es-MX');
         cells[2].value = item.product_name;
-        cells[3].value = item.quantity;
-        cells[4].value = item.unit_price;
-        cells[5].value = item.subtotal;
+        cells[3].value = item.input_value ?? item.quantity;
+        cells[4].value = item.input_unit ?? 'Unidad no registrada';
+        cells[5].value = item.quantity;
+        cells[6].value = item.base_unit ?? 'Unidad no registrada';
+        cells[7].value = item.unit_price;
+        cells[8].value = item.subtotal;
 
         applyDataCell(cells[0], itemIdx, { align: 'center' });
         applyDataCell(cells[1], itemIdx);
         applyDataCell(cells[2], itemIdx);
-        applyDataCell(cells[3], itemIdx, { align: 'center' });
-        applyDataCell(cells[4], itemIdx, { align: 'right' });
-        applyDataCell(cells[5], itemIdx, { align: 'right', bold: true });
+        applyDataCell(cells[3], itemIdx, { align: 'right' });
+        applyDataCell(cells[4], itemIdx, { align: 'center' });
+        applyDataCell(cells[5], itemIdx, { align: 'right' });
+        applyDataCell(cells[6], itemIdx, { align: 'center' });
+        applyDataCell(cells[7], itemIdx, { align: 'right' });
+        applyDataCell(cells[8], itemIdx, { align: 'right', bold: true });
 
-        cells[4].numFmt = '"$"#,##0.00';
-        cells[5].numFmt = '"$"#,##0.00';
+        cells[3].numFmt = item.input_mode === 'amount' ? '"$"#,##0.00' : '#,##0.###';
+        cells[5].numFmt = '#,##0.000';
+        cells[7].numFmt = '"$"#,##0.00';
+        cells[8].numFmt = '"$"#,##0.00';
 
         wsDetalle.getRow(r).height = 15;
         r++;
@@ -451,7 +475,7 @@ export class ReportGenerator {
     }
 
     if (itemIdx === 0) {
-      wsDetalle.mergeCells(r, 1, r, 6);
+      wsDetalle.mergeCells(r, 1, r, 9);
       const cell = wsDetalle.getCell(r, 1);
       cell.value = 'No hay ítems en el período seleccionado';
       applyDataCell(cell, 0, { color: XL_GRAY_TEXT });

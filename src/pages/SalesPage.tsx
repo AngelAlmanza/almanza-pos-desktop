@@ -43,6 +43,11 @@ import { UserService } from "../services/UserService";
 import { cleanError } from "../utils/CleanError";
 import { formatCurrency } from "../utils/FormatCurrency";
 import { paymentMethodLabel } from "../utils/PaymentLabels";
+import {
+  getBaseEquivalentLabel,
+  getBasePriceLabel,
+  getPurchaseLabel,
+} from "../utils/saleItemPresentation";
 
 moment.locale("es");
 
@@ -461,9 +466,9 @@ export function SalesPage() {
                             <TableHead>
                               <TableRow>
                                 <TableCell>Producto</TableCell>
-                                <TableCell align="right">Cantidad</TableCell>
-                                <TableCell align="right">P. Unitario</TableCell>
-                                <TableCell align="right">Subtotal</TableCell>
+                                <TableCell align="right">Compró</TableCell>
+                                <TableCell align="right">Precio base</TableCell>
+                                <TableCell align="right">Total</TableCell>
                               </TableRow>
                             </TableHead>
                             <TableBody>
@@ -474,13 +479,20 @@ export function SalesPage() {
                                     align="right"
                                     sx={{ fontVariantNumeric: "tabular-nums" }}
                                   >
-                                    {item.quantity}
+                                    <Typography variant="body2">
+                                      {getPurchaseLabel(item)}
+                                    </Typography>
+                                    {getBaseEquivalentLabel(item) && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        ≈ {getBaseEquivalentLabel(item)}
+                                      </Typography>
+                                    )}
                                   </TableCell>
                                   <TableCell
                                     align="right"
                                     sx={{ fontVariantNumeric: "tabular-nums" }}
                                   >
-                                    {formatCurrency(item.unit_price)}
+                                    {getBasePriceLabel(item)}
                                   </TableCell>
                                   <TableCell
                                     align="right"

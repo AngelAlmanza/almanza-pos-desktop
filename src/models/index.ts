@@ -2,6 +2,7 @@ import type {
   AdjustmentType,
   PaymentMethod,
   ProductUnit,
+  SaleInputMode,
   SaleStatus,
   SessionStatus,
   UserRole,
@@ -89,6 +90,10 @@ export interface SaleItem {
   product_id: number;
   product_name: string;
   quantity: number;
+  base_unit: ProductUnit | null;
+  input_mode: SaleInputMode | null;
+  input_value: number | null;
+  input_unit: string | null;
   unit_price: number;
   subtotal: number;
 }
@@ -189,9 +194,17 @@ export interface PrinterInfo {
   transport: string;
 }
 
-// Cart item for POS
-export interface CartItem {
-  product: Product;
+export interface SaleQuantitySelection {
   quantity: number;
+  input_mode: SaleInputMode;
+  input_value: number;
+  input_unit: string;
+}
+
+// Cart item for POS
+export interface CartItem extends SaleQuantitySelection {
+  line_key: string;
+  product: Product;
+  base_unit: ProductUnit;
   subtotal: number;
 }

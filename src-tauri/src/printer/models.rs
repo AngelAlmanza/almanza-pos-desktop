@@ -89,7 +89,11 @@ pub struct TicketData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TicketItem {
     pub description: String,
-    pub quantity: f64,
+    pub base_quantity: f64,
+    pub base_unit: Option<String>,
+    pub input_mode: Option<String>,
+    pub input_value: Option<f64>,
+    pub input_unit: Option<String>,
     pub unit_price: f64,
     pub total: f64,
 }

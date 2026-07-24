@@ -1,12 +1,15 @@
 import { createContext, Dispatch, ReactNode, SetStateAction, useContext, useReducer, useState } from 'react';
-import { CartItem, Product } from '../models';
-import { addQuantity, hasSufficientStock, multiplyMoney, roundQuantity } from '../utils/money';
+import { Decimal } from 'decimal.js';
+import { CartItem, Product, SaleQuantitySelection } from '../models';
+import { addQuantity, hasSufficientStock, multiplyMoney, sumQuantity } from '../utils/money';
+import { buildQuantitySelection } from '../utils/unitConversion';
 
 export type PosAction =
-  | { type: 'ADD_ITEM'; payload: { product: Product; quantity: number } }
-  | { type: 'REMOVE_ITEM'; payload: { productId: number } }
-  | { type: 'SET_QUANTITY'; payload: { productId: number; quantity: number } }
-  | { type: 'INCREMENT'; payload: { productId: number; delta: number } }
+  | { type: 'ADD_ITEM'; payload: { product: Product; selection: SaleQuantitySelection } }
+  | { type: 'REMOVE_ITEM'; payload: { lineKey: string } }
+  | { type: 'SET_QUANTITY'; payload: { lineKey: string; quantity: number } }
+  | { type: 'SET_INPUT'; payload: { lineKey: string; selection: SaleQuantitySelection } }
+  | { type: 'INCREMENT'; payload: { lineKey: string; delta: number } }
   | { type: 'CLEAR_CART' };
 
 type CartState = { cart: CartItem[] };
@@ -18,77 +21,134 @@ interface PosContextType {
   dispatch: Dispatch<PosAction>;
 }
 
-function buildCartItem(product: Product, quantity: number): CartItem {
-  const normalizedQuantity = roundQuantity(quantity);
+export function buildCartLineKey(
+  productId: number,
+  selection: Pick<SaleQuantitySelection, 'input_mode' | 'input_unit'>,
+): string {
+  return `${productId}:${selection.input_mode}:${selection.input_unit}`;
+}
+
+function buildCartItem(product: Product, selection: SaleQuantitySelection): CartItem {
+  const normalizedSelection = buildQuantitySelection(selection, product);
 
   return {
+    line_key: buildCartLineKey(product.id, normalizedSelection),
     product,
-    quantity: normalizedQuantity,
-    subtotal: multiplyMoney(product.price, normalizedQuantity),
+    base_unit: product.unit,
+    ...normalizedSelection,
+    subtotal: multiplyMoney(product.price, normalizedSelection.quantity),
   };
+}
+
+function hasSufficientCartStock(cart: CartItem[], product: Product): boolean {
+  const requestedQuantity = sumQuantity(
+    cart.filter((item) => item.product.id === product.id).map((item) => item.quantity),
+  );
+  return hasSufficientStock(product.stock, requestedQuantity);
+}
+
+export function getRequestedProductQuantityAfterAdd(
+  cart: CartItem[],
+  product: Product,
+  selection: SaleQuantitySelection,
+): number {
+  const lineKey = buildCartLineKey(product.id, selection);
+  const existing = cart.find((item) => item.line_key === lineKey);
+  const combinedSelection = existing
+    ? buildQuantitySelection({
+        ...selection,
+        input_value: new Decimal(existing.input_value).plus(selection.input_value).toNumber(),
+      }, product)
+    : selection;
+  const otherQuantity = sumQuantity(
+    cart
+      .filter((item) => item.product.id === product.id && item.line_key !== lineKey)
+      .map((item) => item.quantity),
+  );
+
+  return sumQuantity([otherQuantity, combinedSelection.quantity]);
+}
+
+function addOrMergeItem(
+  cart: CartItem[],
+  product: Product,
+  selection: SaleQuantitySelection,
+): CartItem[] | null {
+  const lineKey = buildCartLineKey(product.id, selection);
+  const existing = cart.find((item) => item.line_key === lineKey);
+  const nextItem = existing
+    ? buildCartItem(product, {
+        ...selection,
+        input_value: new Decimal(existing.input_value).plus(selection.input_value).toNumber(),
+      })
+    : buildCartItem(product, selection);
+  const nextCart = existing
+    ? cart.map((item) => (item.line_key === lineKey ? nextItem : item))
+    : [...cart, nextItem];
+
+  return hasSufficientCartStock(nextCart, product) ? nextCart : null;
 }
 
 export function posReducer(state: CartState, action: PosAction): CartState {
   switch (action.type) {
     case 'ADD_ITEM': {
-      const { product, quantity } = action.payload;
-      const existing = state.cart.find(i => i.product.id === product.id);
-      const normalizedQuantity = roundQuantity(quantity);
-
-      if (existing) {
-        const newQty = addQuantity(existing.quantity, normalizedQuantity);
-        if (!hasSufficientStock(product.stock, newQty)) return state;
-
-        return {
-          ...state,
-          cart: state.cart.map(i =>
-            i.product.id === product.id
-              ? buildCartItem(product, newQty)
-              : i
-          ),
-        };
-      }
-
-      if (!hasSufficientStock(product.stock, normalizedQuantity)) return state;
-
-      return {
-        ...state,
-        cart: [...state.cart, buildCartItem(product, normalizedQuantity)],
-      };
+      const { product, selection } = action.payload;
+      const nextCart = addOrMergeItem(state.cart, product, selection);
+      return nextCart ? { ...state, cart: nextCart } : state;
     }
 
     case 'INCREMENT': {
-      const { productId, delta } = action.payload;
-      return {
-        ...state,
-        cart: state.cart
-          .map(i => {
-            if (i.product.id !== productId) return i;
+      const { lineKey, delta } = action.payload;
+      const current = state.cart.find((item) => item.line_key === lineKey);
+      if (!current) return state;
 
-            return buildCartItem(i.product, addQuantity(i.quantity, delta));
-          })
-          .filter(i => i.quantity > 0),
-      };
+      const nextQuantity = addQuantity(current.quantity, delta);
+      if (nextQuantity <= 0) {
+        return { ...state, cart: state.cart.filter((item) => item.line_key !== lineKey) };
+      }
+
+      const nextItem = buildCartItem(current.product, {
+        quantity: nextQuantity,
+        input_mode: 'base',
+        input_value: nextQuantity,
+        input_unit: current.base_unit,
+      });
+      const nextCart = state.cart.map((item) => (item.line_key === lineKey ? nextItem : item));
+      return hasSufficientCartStock(nextCart, current.product) ? { ...state, cart: nextCart } : state;
     }
 
     case 'SET_QUANTITY': {
-      const { productId, quantity } = action.payload;
-      return {
-        ...state,
-        cart: state.cart
-          .map(i =>
-            i.product.id === productId
-              ? buildCartItem(i.product, quantity)
-              : i
-          )
-          .filter(i => i.quantity > 0),
-      };
+      const { lineKey, quantity } = action.payload;
+      const current = state.cart.find((item) => item.line_key === lineKey);
+      if (!current) return state;
+      if (quantity <= 0) {
+        return { ...state, cart: state.cart.filter((item) => item.line_key !== lineKey) };
+      }
+
+      const nextItem = buildCartItem(current.product, {
+        quantity,
+        input_mode: 'base',
+        input_value: quantity,
+        input_unit: current.base_unit,
+      });
+      const nextCart = state.cart.map((item) => (item.line_key === lineKey ? nextItem : item));
+      return hasSufficientCartStock(nextCart, current.product) ? { ...state, cart: nextCart } : state;
+    }
+
+    case 'SET_INPUT': {
+      const { lineKey, selection } = action.payload;
+      const current = state.cart.find((item) => item.line_key === lineKey);
+      if (!current) return state;
+
+      const withoutCurrent = state.cart.filter((item) => item.line_key !== lineKey);
+      const nextCart = addOrMergeItem(withoutCurrent, current.product, selection);
+      return nextCart ? { ...state, cart: nextCart } : state;
     }
 
     case 'REMOVE_ITEM':
       return {
         ...state,
-        cart: state.cart.filter(i => i.product.id !== action.payload.productId),
+        cart: state.cart.filter((item) => item.line_key !== action.payload.lineKey),
       };
 
     case 'CLEAR_CART':

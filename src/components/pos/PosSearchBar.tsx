@@ -1,11 +1,11 @@
 import { QrCodeScanner, Search } from "@mui/icons-material";
 import { Box, Card, CardContent, Chip, Dialog, DialogContent, DialogTitle, IconButton, InputAdornment, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
 import { SubmitEvent, useCallback, useEffect, useRef, useState } from "react";
-import { usePos } from "../../context/PosProvider";
-import { Product } from "../../models";
+import { getRequestedProductQuantityAfterAdd, usePos } from "../../context/PosProvider";
+import { Product, SaleQuantitySelection } from "../../models";
 import { ProductService } from "../../services/ProductService";
-import { addQuantity, hasSufficientStock, roundQuantity } from "../../utils/money";
-import { usesBulkQuantityInput } from "../../utils/unitConversion";
+import { hasSufficientStock } from "../../utils/money";
+import { buildQuantitySelection, usesBulkQuantityInput } from "../../utils/unitConversion";
 import { BulkQuantityDialog } from "./BulkQuantityDialog";
 
 export const PosSearchBar = () => {
@@ -18,11 +18,15 @@ export const PosSearchBar = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
-  const addToCart = (product: Product, quantity = 1) => {
-    const existing = cart.find(item => item.product.id === product.id);
-    const currentQty = existing?.quantity ?? 0;
-    const normalizedQuantity = roundQuantity(quantity);
-    const requestedQty = addQuantity(currentQty, normalizedQuantity);
+  const addToCart = (
+    product: Product,
+    selection: SaleQuantitySelection = buildQuantitySelection({
+      input_mode: 'base',
+      input_value: 1,
+      input_unit: product.unit,
+    }, product),
+  ) => {
+    const requestedQty = getRequestedProductQuantityAfterAdd(cart, product, selection);
 
     if (!hasSufficientStock(product.stock, requestedQty)) {
       setError(`Stock insuficiente. Disponible: ${product.stock}`);
@@ -30,7 +34,7 @@ export const PosSearchBar = () => {
       return;
     }
 
-    dispatch({ type: 'ADD_ITEM', payload: { product, quantity: normalizedQuantity } });
+    dispatch({ type: 'ADD_ITEM', payload: { product, selection } });
     setShowSearch(false);
     setSearchTerm('');
   };
@@ -185,13 +189,9 @@ export const PosSearchBar = () => {
       <BulkQuantityDialog
         open={pendingProduct !== null}
         product={pendingProduct}
-        existingCartQty={
-          pendingProduct
-            ? (cart.find(item => item.product.id === pendingProduct.id)?.quantity ?? 0)
-            : 0
-        }
-        onConfirm={(qty) => {
-          if (pendingProduct) addToCart(pendingProduct, qty);
+        cartItems={cart}
+        onConfirm={(selection) => {
+          if (pendingProduct) addToCart(pendingProduct, selection);
           setPendingProduct(null);
         }}
         onCancel={() => setPendingProduct(null)}

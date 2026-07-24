@@ -1,6 +1,7 @@
 import { Decimal } from 'decimal.js';
-import type { Product } from '../models';
+import type { Product, SaleQuantitySelection } from '../models';
 import type { ProductUnit } from '../types';
+import { roundQuantity } from './money';
 
 type NumericValue = Decimal.Value;
 
@@ -213,4 +214,39 @@ export function amountToQuantity(amount: NumericValue, pricePerUnit: NumericValu
   }
 
   return amountDecimal.div(price);
+}
+
+export function quantityInputToBase(
+  input: Pick<SaleQuantitySelection, 'input_mode' | 'input_value' | 'input_unit'>,
+  product: Pick<Product, 'price' | 'unit'>,
+): Decimal {
+  switch (input.input_mode) {
+    case 'base':
+      if (input.input_unit !== product.unit) {
+        throw new UnitConversionError(`Expected base unit ${product.unit}, received ${input.input_unit}.`);
+      }
+      return toDecimal(input.input_value);
+    case 'sub': {
+      const config = getUnitConfig(product.unit);
+      if (!config || input.input_unit !== config.subUnitCode) {
+        throw new UnitConversionError(`Unit ${input.input_unit} is not a valid subunit for ${product.unit}.`);
+      }
+      return convert(input.input_value, input.input_unit, product.unit);
+    }
+    case 'amount':
+      if (input.input_unit !== 'MXN') {
+        throw new UnitConversionError(`Amount input must use MXN, received ${input.input_unit}.`);
+      }
+      return amountToQuantity(input.input_value, product.price);
+  }
+}
+
+export function buildQuantitySelection(
+  input: Pick<SaleQuantitySelection, 'input_mode' | 'input_value' | 'input_unit'>,
+  product: Pick<Product, 'price' | 'unit'>,
+): SaleQuantitySelection {
+  return {
+    ...input,
+    quantity: roundQuantity(quantityInputToBase(input, product).toNumber()),
+  };
 }

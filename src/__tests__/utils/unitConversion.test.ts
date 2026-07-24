@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   amountToQuantity,
+  buildQuantitySelection,
   convert,
   fromBase,
   getCompatibleUnits,
@@ -8,6 +9,7 @@ import {
   getUnitMeta,
   isBulkUnit,
   isCompatible,
+  quantityInputToBase,
   subUnitToBase,
   supportsBulkQuantityInput,
   toBase,
@@ -159,5 +161,29 @@ describe('amountToQuantity', () => {
 
   it('throws when price cannot produce a safe quantity', () => {
     expect(() => amountToQuantity(50, 0)).toThrow('Price per unit must be greater than zero.');
+  });
+});
+
+describe('sale quantity input', () => {
+  const product = { price: 100, unit: 'kg' as const };
+
+  it.each([
+    [{ input_mode: 'base' as const, input_value: 0.2, input_unit: 'kg' }, 0.2],
+    [{ input_mode: 'sub' as const, input_value: 200, input_unit: 'g' }, 0.2],
+    [{ input_mode: 'amount' as const, input_value: 20, input_unit: 'MXN' }, 0.2],
+  ])('converts captured input while preserving its presentation metadata', (input, expected) => {
+    expect(quantityInputToBase(input, product).toNumber()).toBe(expected);
+    expect(buildQuantitySelection(input, product)).toEqual({
+      ...input,
+      quantity: expected,
+    });
+  });
+
+  it('rejects a subunit that does not belong to the product base unit', () => {
+    expect(() => quantityInputToBase({
+      input_mode: 'sub',
+      input_value: 200,
+      input_unit: 'ml',
+    }, product)).toThrow('Unit ml is not a valid subunit for kg.');
   });
 });

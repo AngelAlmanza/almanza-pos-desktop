@@ -109,6 +109,33 @@ impl ESCPosAdapter {
             format!("{:.3}", quantity)
         }
     }
+
+    fn purchase_label(item: &TicketItem) -> String {
+        match (
+            item.input_mode.as_deref(),
+            item.input_value,
+            item.input_unit.as_deref(),
+        ) {
+            (Some("amount"), Some(value), _) => Self::format_money(value),
+            (Some(_), Some(value), Some(unit)) => {
+                format!("{} {}", Self::quantity_label(value), unit)
+            }
+            _ => format!(
+                "{} - UNIDAD NO REGISTRADA",
+                Self::quantity_label(item.base_quantity)
+            ),
+        }
+    }
+
+    fn base_price_label(item: &TicketItem) -> String {
+        match item.base_unit.as_deref() {
+            Some(unit) => format!("{}/{}", Self::format_money(item.unit_price), unit),
+            None => format!(
+                "{} - UNIDAD NO REGISTRADA",
+                Self::format_money(item.unit_price)
+            ),
+        }
+    }
 }
 
 #[async_trait]
@@ -132,15 +159,26 @@ impl PrinterAdapter for ESCPosAdapter {
 
             self.write_line(
                 &mut commands,
-                &format!("PRECIO: {}", Self::format_money(item.unit_price)),
+                &format!("COMPRO: {}", Self::purchase_label(item)),
+            );
+            if item.input_mode.as_deref() == Some("amount") {
+                let base_unit = item.base_unit.as_deref().unwrap_or("UNIDAD NO REGISTRADA");
+                self.write_line(
+                    &mut commands,
+                    &format!(
+                        "EQUIVALE: {} {}",
+                        Self::quantity_label(item.base_quantity),
+                        base_unit
+                    ),
+                );
+            }
+            self.write_line(
+                &mut commands,
+                &format!("PRECIO BASE: {}", Self::base_price_label(item)),
             );
             self.write_line(
                 &mut commands,
-                &format!("CANTIDAD: {}", Self::quantity_label(item.quantity)),
-            );
-            self.write_line(
-                &mut commands,
-                &format!("IMPORTE: {}", Self::format_money(item.total)),
+                &format!("TOTAL: {}", Self::format_money(item.total)),
             );
             commands.push(0x0A);
         }
@@ -229,7 +267,11 @@ mod tests {
         TicketData {
             items: vec![TicketItem {
                 description: "Café molido muy rico".to_string(),
-                quantity: 1.0,
+                base_quantity: 1.0,
+                base_unit: Some("pieza".to_string()),
+                input_mode: Some("base".to_string()),
+                input_value: Some(1.0),
+                input_unit: Some("pieza".to_string()),
                 unit_price: 20.0,
                 total: 20.0,
             }],
@@ -297,9 +339,56 @@ mod tests {
         let rendered = String::from_utf8_lossy(&commands);
 
         assert!(rendered.contains("Cafe molido muy rico"));
-        assert!(rendered.contains("PRECIO: $20.00"));
-        assert!(rendered.contains("CANTIDAD: 1"));
-        assert!(rendered.contains("IMPORTE: $20.00"));
+        assert!(rendered.contains("COMPRO: 1 pieza"));
+        assert!(rendered.contains("PRECIO BASE: $20.00/pieza"));
         assert!(rendered.contains("TOTAL: $20.00"));
+        assert!(rendered.contains("TOTAL: $20.00"));
+    }
+
+    #[test]
+    fn generate_commands_shows_amount_input_and_base_equivalent() {
+        let adapter = build_adapter(CutType::None);
+        let mut ticket = sample_ticket();
+        ticket.items[0] = TicketItem {
+            description: "Tomate".to_string(),
+            base_quantity: 0.2,
+            base_unit: Some("kg".to_string()),
+            input_mode: Some("amount".to_string()),
+            input_value: Some(20.0),
+            input_unit: Some("MXN".to_string()),
+            unit_price: 100.0,
+            total: 20.0,
+        };
+        let commands = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime should build")
+            .block_on(adapter.generate_commands(&ticket))
+            .expect("ticket should render");
+        let rendered = String::from_utf8_lossy(&commands);
+
+        assert!(rendered.contains("COMPRO: $20.00"));
+        assert!(rendered.contains("EQUIVALE: 0.200 kg"));
+        assert!(rendered.contains("PRECIO BASE: $100.00/kg"));
+    }
+
+    #[test]
+    fn generate_commands_marks_legacy_units_as_unregistered() {
+        let adapter = build_adapter(CutType::None);
+        let mut ticket = sample_ticket();
+        ticket.items[0].base_unit = None;
+        ticket.items[0].input_mode = None;
+        ticket.items[0].input_value = None;
+        ticket.items[0].input_unit = None;
+        let commands = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime should build")
+            .block_on(adapter.generate_commands(&ticket))
+            .expect("ticket should render");
+        let rendered = String::from_utf8_lossy(&commands);
+
+        assert!(rendered.contains("COMPRO: 1 - UNIDAD NO REGISTRADA"));
+        assert!(rendered.contains("PRECIO BASE: $20.00 - UNIDAD NO REGISTRADA"));
     }
 }

@@ -74,6 +74,10 @@ pub fn initialize(db: &Database) -> Result<(), String> {
             product_id INTEGER NOT NULL REFERENCES products(id),
             product_name TEXT NOT NULL,
             quantity REAL NOT NULL,
+            base_unit TEXT,
+            input_mode TEXT CHECK(input_mode IN ('base', 'sub', 'amount')),
+            input_value REAL,
+            input_unit TEXT,
             unit_price REAL NOT NULL,
             subtotal REAL NOT NULL
         );
@@ -127,6 +131,10 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         "ALTER TABLE sales ADD COLUMN exchange_rate REAL",
         "ALTER TABLE cash_register_sessions ADD COLUMN closing_cash_mxn REAL",
         "ALTER TABLE cash_register_sessions ADD COLUMN closing_cash_usd REAL",
+        "ALTER TABLE sale_items ADD COLUMN base_unit TEXT",
+        "ALTER TABLE sale_items ADD COLUMN input_mode TEXT CHECK(input_mode IN ('base', 'sub', 'amount'))",
+        "ALTER TABLE sale_items ADD COLUMN input_value REAL",
+        "ALTER TABLE sale_items ADD COLUMN input_unit TEXT",
     ];
 
     for sql in &migrations {
@@ -171,7 +179,7 @@ fn migrate_products_is_bulk(conn: &rusqlite::Connection) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::migrate_products_is_bulk;
+    use super::{migrate_products_is_bulk, run_migrations};
     use rusqlite::{params, Connection};
 
     #[test]
@@ -208,6 +216,37 @@ mod tests {
             })
             .unwrap();
         assert_eq!(customized_flag, 0);
+    }
+
+    #[test]
+    fn sale_item_migration_keeps_legacy_purchase_units_unregistered() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE sales (id INTEGER PRIMARY KEY);
+            CREATE TABLE cash_register_sessions (id INTEGER PRIMARY KEY);
+            CREATE TABLE products (
+                id INTEGER PRIMARY KEY,
+                unit TEXT NOT NULL,
+                is_bulk INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE sale_items (
+                id INTEGER PRIMARY KEY,
+                quantity REAL NOT NULL
+            );
+            INSERT INTO sale_items (id, quantity) VALUES (1, 0.5);",
+        )
+        .unwrap();
+
+        run_migrations(&conn).unwrap();
+
+        let metadata: (Option<String>, Option<String>, Option<f64>, Option<String>) = conn
+            .query_row(
+                "SELECT base_unit, input_mode, input_value, input_unit FROM sale_items WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(metadata, (None, None, None, None));
     }
 }
 

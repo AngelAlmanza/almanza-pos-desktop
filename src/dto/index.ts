@@ -1,4 +1,4 @@
-import type { AdjustmentType, ProductUnit, UserRole } from '../types';
+import type { AdjustmentType, ProductUnit, SaleInputMode, UserRole } from '../types';
 
 // Auth DTOs
 export interface LoginDTO {
@@ -78,6 +78,9 @@ export interface CloseCashRegisterDTO {
 export interface CreateSaleItemDTO {
   product_id: number;
   quantity: number;
+  input_mode: SaleInputMode;
+  input_value: number;
+  input_unit: string;
 }
 
 export interface CreateSaleDTO {

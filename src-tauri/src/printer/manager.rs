@@ -29,7 +29,11 @@ impl PrinterManager {
         let test_data = TicketData {
             items: vec![TicketItem {
                 description: "TEST ITEM".to_string(),
-                quantity: 1.0,
+                base_quantity: 1.0,
+                base_unit: Some("pieza".to_string()),
+                input_mode: Some("base".to_string()),
+                input_value: Some(1.0),
+                input_unit: Some("pieza".to_string()),
                 unit_price: 10.0,
                 total: 10.0,
             }],

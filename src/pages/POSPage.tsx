@@ -125,6 +125,9 @@ export function POSPage() {
         items: cart.map((item) => ({
           product_id: item.product.id,
           quantity: item.quantity,
+          input_mode: item.input_mode,
+          input_value: item.input_value,
+          input_unit: item.input_unit,
         })),
       });
 

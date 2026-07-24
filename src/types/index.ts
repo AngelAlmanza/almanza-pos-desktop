@@ -9,6 +9,9 @@ export type SessionStatus = 'open' | 'closed';
 /** Estado del ciclo de vida de una venta. */
 export type SaleStatus = 'completed' | 'cancelled';
 
+/** Forma en que el cajero capturó una cantidad vendida. */
+export type SaleInputMode = 'base' | 'sub' | 'amount';
+
 /** Dirección de un ajuste de inventario. */
 export type AdjustmentType = 'add' | 'positive' | 'negative';
 

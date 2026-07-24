@@ -22,21 +22,37 @@ import {
 } from "@mui/material";
 import { useState } from 'react';
 import { usePos } from '../../context/PosProvider';
-import { Product } from '../../models';
+import { CartItem } from '../../models';
 import { addQuantity, hasSufficientStock, isPositiveQuantity, parseQuantityInput } from '../../utils/money';
+import {
+  getBaseEquivalentLabel,
+  getBasePriceLabel,
+  getPurchaseLabel,
+  type SaleItemPresentationData,
+} from '../../utils/saleItemPresentation';
 import { usesBulkQuantityInput } from '../../utils/unitConversion';
 import { BulkQuantityDialog } from './BulkQuantityDialog';
 
 export const SaleSummaryTable = () => {
   const { cart, dispatch, setError } = usePos();
-  const [editingBulkProduct, setEditingBulkProduct] = useState<Product | null>(null);
+  const [editingBulkItem, setEditingBulkItem] = useState<CartItem | null>(null);
+
+  const toPresentationData = (item: CartItem): SaleItemPresentationData => ({
+    quantity: item.quantity,
+    base_unit: item.base_unit,
+    input_mode: item.input_mode,
+    input_value: item.input_value,
+    input_unit: item.input_unit,
+    unit_price: item.product.price,
+    subtotal: item.subtotal,
+  });
 
   const updateQuantity = (index: number, delta: number) => {
     const item = cart[index];
     const newQty = addQuantity(item.quantity, delta);
 
     if (!isPositiveQuantity(newQty)) {
-      dispatch({ type: 'REMOVE_ITEM', payload: { productId: item.product.id } });
+      dispatch({ type: 'REMOVE_ITEM', payload: { lineKey: item.line_key } });
       return;
     }
 
@@ -46,7 +62,7 @@ export const SaleSummaryTable = () => {
       return;
     }
 
-    dispatch({ type: 'INCREMENT', payload: { productId: item.product.id, delta } });
+    dispatch({ type: 'INCREMENT', payload: { lineKey: item.line_key, delta } });
   };
 
   const handleQuantityChange = (index: number, rawValue: string) => {
@@ -59,7 +75,7 @@ export const SaleSummaryTable = () => {
     }
 
     if (!isPositiveQuantity(qty)) {
-      dispatch({ type: 'REMOVE_ITEM', payload: { productId: item.product.id } });
+      dispatch({ type: 'REMOVE_ITEM', payload: { lineKey: item.line_key } });
       return;
     }
 
@@ -75,11 +91,11 @@ export const SaleSummaryTable = () => {
       return;
     }
 
-    dispatch({ type: 'SET_QUANTITY', payload: { productId: item.product.id, quantity: qty } });
+    dispatch({ type: 'SET_QUANTITY', payload: { lineKey: item.line_key, quantity: qty } });
   };
 
   const removeFromCart = (index: number) => {
-    dispatch({ type: 'REMOVE_ITEM', payload: { productId: cart[index].product.id } });
+    dispatch({ type: 'REMOVE_ITEM', payload: { lineKey: cart[index].line_key } });
   };
 
   return (
@@ -89,9 +105,9 @@ export const SaleSummaryTable = () => {
           <TableHead>
             <TableRow>
               <TableCell>Producto</TableCell>
-              <TableCell align="center">Cant.</TableCell>
-              <TableCell align="right">P. Unit.</TableCell>
-              <TableCell align="right">Subtotal</TableCell>
+              <TableCell align="center">Compró</TableCell>
+              <TableCell align="right">Precio base</TableCell>
+              <TableCell align="right">Total</TableCell>
               <TableCell align="center" width={80}></TableCell>
             </TableRow>
           </TableHead>
@@ -103,8 +119,12 @@ export const SaleSummaryTable = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              cart.map((item, index) => (
-                <TableRow key={item.product.id}>
+              cart.map((item, index) => {
+                const presentation = toPresentationData(item);
+                const equivalentLabel = getBaseEquivalentLabel(presentation);
+
+                return (
+                <TableRow key={item.line_key}>
                   <TableCell>
                     <Typography variant="body2" fontWeight={600}>
                       {item.product.name}
@@ -136,10 +156,10 @@ export const SaleSummaryTable = () => {
                         size="small"
                         variant="outlined"
                         endIcon={<Edit sx={{ fontSize: 15 }} />}
-                        onClick={() => setEditingBulkProduct(item.product)}
+                        onClick={() => setEditingBulkItem(item)}
                         sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
                       >
-                        {item.quantity.toFixed(3)} {item.product.unit}
+                        {getPurchaseLabel(presentation)}
                       </Button>
                     ) : (
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
@@ -161,8 +181,15 @@ export const SaleSummaryTable = () => {
                         </IconButton>
                       </Box>
                     )}
+                    {equivalentLabel && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        ≈ {equivalentLabel}
+                      </Typography>
+                    )}
                   </TableCell>
-                  <TableCell align="right">${item.product.price.toFixed(2)}</TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {getBasePriceLabel(presentation)}
+                  </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600 }}>
                     ${item.subtotal.toFixed(2)}
                   </TableCell>
@@ -172,31 +199,29 @@ export const SaleSummaryTable = () => {
                     </IconButton>
                   </TableCell>
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>
       </TableContainer>
       <BulkQuantityDialog
-        open={editingBulkProduct !== null}
-        product={editingBulkProduct}
-        existingCartQty={0}
+        open={editingBulkItem !== null}
+        product={editingBulkItem?.product ?? null}
+        cartItems={cart}
+        editingLineKey={editingBulkItem?.line_key}
         mode="edit"
-        initialQuantity={
-          editingBulkProduct
-            ? (cart.find((item) => item.product.id === editingBulkProduct.id)?.quantity ?? 0)
-            : 0
-        }
-        onConfirm={(quantity) => {
-          if (editingBulkProduct) {
+        initialSelection={editingBulkItem}
+        onConfirm={(selection) => {
+          if (editingBulkItem) {
             dispatch({
-              type: 'SET_QUANTITY',
-              payload: { productId: editingBulkProduct.id, quantity },
+              type: 'SET_INPUT',
+              payload: { lineKey: editingBulkItem.line_key, selection },
             });
           }
-          setEditingBulkProduct(null);
+          setEditingBulkItem(null);
         }}
-        onCancel={() => setEditingBulkProduct(null)}
+        onCancel={() => setEditingBulkItem(null)}
       />
     </>
   )

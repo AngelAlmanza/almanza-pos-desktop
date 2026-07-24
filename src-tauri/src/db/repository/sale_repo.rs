@@ -1,6 +1,6 @@
 use crate::db::Database;
 use crate::error::{AppError, AppResult};
-use crate::models::sale::{Sale, SaleItem, SaleStatus, TopProduct};
+use crate::models::sale::{Sale, SaleInputMode, SaleItem, SaleStatus, TopProduct};
 use crate::utils::money;
 use rusqlite::params;
 
@@ -10,6 +10,18 @@ const SALE_SELECT: &str = "\
             s.payment_cash_mxn, s.payment_cash_usd, s.payment_transfer, \
             s.exchange_rate, s.change_amount, s.status, s.created_at \
     FROM sales s JOIN users u ON s.user_id = u.id";
+
+pub struct PreparedSaleItem {
+    pub product_id: i64,
+    pub product_name: String,
+    pub quantity: f64,
+    pub base_unit: String,
+    pub input_mode: SaleInputMode,
+    pub input_value: f64,
+    pub input_unit: String,
+    pub unit_price: f64,
+    pub subtotal: f64,
+}
 
 fn row_to_sale(row: &rusqlite::Row) -> rusqlite::Result<Sale> {
     Ok(Sale {
@@ -36,7 +48,8 @@ fn find_sale_items_by_sale_id(
     sale_id: i64,
 ) -> AppResult<Vec<SaleItem>> {
     let mut stmt = conn.prepare(
-        "SELECT id, sale_id, product_id, product_name, quantity, unit_price, subtotal \
+        "SELECT id, sale_id, product_id, product_name, quantity, base_unit, input_mode, \
+                input_value, input_unit, unit_price, subtotal \
             FROM sale_items WHERE sale_id = ?1",
     )?;
 
@@ -48,8 +61,12 @@ fn find_sale_items_by_sale_id(
                 product_id: row.get(2)?,
                 product_name: row.get(3)?,
                 quantity: row.get(4)?,
-                unit_price: row.get(5)?,
-                subtotal: row.get(6)?,
+                base_unit: row.get(5)?,
+                input_mode: row.get(6)?,
+                input_value: row.get(7)?,
+                input_unit: row.get(8)?,
+                unit_price: row.get(9)?,
+                subtotal: row.get(10)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -78,7 +95,7 @@ pub fn create(
     payment_transfer: f64,
     exchange_rate: Option<f64>,
     change_amount: f64,
-    items: &[(i64, String, f64, f64, f64)],
+    items: &[PreparedSaleItem],
 ) -> AppResult<Sale> {
     let mut conn = db.conn.lock()?;
     let tx = conn.transaction()?;
@@ -105,33 +122,47 @@ pub fn create(
     let sale_id = tx.last_insert_rowid();
 
     for item in items {
-        let quantity = money::round3(item.2);
+        let quantity = money::round3(item.quantity);
         tx.execute(
-            "INSERT INTO sale_items (sale_id, product_id, product_name, quantity, unit_price, subtotal) \
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![sale_id, item.0, item.1, quantity, item.3, item.4],
+            "INSERT INTO sale_items (sale_id, product_id, product_name, quantity, base_unit, \
+                input_mode, input_value, input_unit, unit_price, subtotal) \
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                sale_id,
+                item.product_id,
+                item.product_name,
+                quantity,
+                item.base_unit,
+                item.input_mode,
+                item.input_value,
+                item.input_unit,
+                item.unit_price,
+                item.subtotal,
+            ],
         )?;
 
         let current_stock: f64 = tx
             .query_row(
                 "SELECT stock FROM products WHERE id = ?1",
-                params![item.0],
+                params![item.product_id],
                 |row| row.get(0),
             )
-            .map_err(|_| AppError::NotFound(format!("Producto '{}' no encontrado", item.1)))?;
+            .map_err(|_| {
+                AppError::NotFound(format!("Producto '{}' no encontrado", item.product_name))
+            })?;
 
         let available_stock = money::round3(current_stock);
         if available_stock < quantity {
             return Err(AppError::Validation(format!(
                 "Stock insuficiente para '{}'. Disponible: {}, Solicitado: {}",
-                item.1, available_stock, quantity
+                item.product_name, available_stock, quantity
             )));
         }
 
         let new_stock = money::sub_stock(available_stock, quantity);
         tx.execute(
             "UPDATE products SET stock = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
-            params![new_stock, item.0],
+            params![new_stock, item.product_id],
         )?;
     }
 
@@ -330,8 +361,9 @@ pub fn cancel_sale(db: &Database, sale_id: i64) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{cancel_sale, create};
+    use super::{cancel_sale, create, PreparedSaleItem};
     use crate::db::Database;
+    use crate::models::sale::SaleInputMode;
     use rusqlite::Connection;
     use std::sync::Mutex;
 
@@ -368,6 +400,10 @@ mod tests {
                 product_id INTEGER NOT NULL,
                 product_name TEXT NOT NULL,
                 quantity REAL NOT NULL,
+                base_unit TEXT,
+                input_mode TEXT,
+                input_value REAL,
+                input_unit TEXT,
                 unit_price REAL NOT NULL,
                 subtotal REAL NOT NULL
             );
@@ -407,11 +443,25 @@ mod tests {
             0.0,
             None,
             0.0,
-            &[(1, "Producto a granel".to_string(), 0.333, 100.0, 33.30)],
+            &[PreparedSaleItem {
+                product_id: 1,
+                product_name: "Producto a granel".to_string(),
+                quantity: 0.333,
+                base_unit: "kg".to_string(),
+                input_mode: SaleInputMode::Sub,
+                input_value: 333.0,
+                input_unit: "g".to_string(),
+                unit_price: 100.0,
+                subtotal: 33.30,
+            }],
         )
         .unwrap();
 
         assert_eq!(sale.items[0].quantity, 0.333);
+        assert_eq!(sale.items[0].base_unit.as_deref(), Some("kg"));
+        assert_eq!(sale.items[0].input_mode, Some(SaleInputMode::Sub));
+        assert_eq!(sale.items[0].input_value, Some(333.0));
+        assert_eq!(sale.items[0].input_unit.as_deref(), Some("g"));
         assert_eq!(product_stock(&db), 0.667);
 
         cancel_sale(&db, sale.id).unwrap();

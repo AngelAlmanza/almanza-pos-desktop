@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { posReducer } from '../../context/PosProvider';
 import type { CartItem, Product } from '../../models';
+import type { SaleInputMode } from '../../types';
+import { buildQuantitySelection } from '../../utils/unitConversion';
 
 // Helper to build a minimal valid Product
 function makeProduct(overrides: Partial<Product> = {}): Product {
@@ -25,12 +27,25 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 
 const emptyState: { cart: CartItem[] } = { cart: [] };
 
+function selection(
+  product: Product,
+  inputValue: number,
+  inputMode: SaleInputMode = 'base',
+  inputUnit: string = product.unit,
+) {
+  return buildQuantitySelection({
+    input_mode: inputMode,
+    input_value: inputValue,
+    input_unit: inputUnit,
+  }, product);
+}
+
 describe('posReducer – ADD_ITEM', () => {
   it('adds a new product to the empty cart', () => {
     const product = makeProduct({ price: 10.0, stock: 5 });
     const state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 1 },
+      payload: { product, selection: selection(product, 1) },
     });
 
     expect(state.cart).toHaveLength(1);
@@ -46,7 +61,7 @@ describe('posReducer – ADD_ITEM', () => {
     const product = makeProduct({ price: 19.99, stock: 10 });
     const state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 3 },
+      payload: { product, selection: selection(product, 3) },
     });
     expect(state.cart[0].subtotal).toBe(59.97);
   });
@@ -56,7 +71,7 @@ describe('posReducer – ADD_ITEM', () => {
     const product = makeProduct({ price: 0.10, stock: 10 });
     const state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 3 },
+      payload: { product, selection: selection(product, 3) },
     });
 
     expect(0.10 * 3).not.toBe(0.30); // prove the raw float problem
@@ -68,7 +83,7 @@ describe('posReducer – ADD_ITEM', () => {
     const product = makeProduct({ price: 89.50, unit: 'kg', is_bulk: true, stock: 10 });
     const state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 1.5 },
+      payload: { product, selection: selection(product, 1.5) },
     });
 
     expect(state.cart[0].subtotal).toBe(134.25);
@@ -78,7 +93,7 @@ describe('posReducer – ADD_ITEM', () => {
     const product = makeProduct({ price: 80, unit: 'kg', is_bulk: true, stock: 10 });
     const state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 0.3125 },
+      payload: { product, selection: selection(product, 0.3125) },
     });
 
     expect(state.cart[0].quantity).toBe(0.313);
@@ -89,11 +104,11 @@ describe('posReducer – ADD_ITEM', () => {
     const product = makeProduct({ price: 9.99, stock: 20 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 2 },
+      payload: { product, selection: selection(product, 2) },
     });
     state = posReducer(state, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 3 },
+      payload: { product, selection: selection(product, 3) },
     });
 
     expect(state.cart).toHaveLength(1);
@@ -106,7 +121,7 @@ describe('posReducer – ADD_ITEM', () => {
     const product = makeProduct({ price: 10.0, stock: 3 });
     const state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 5 },
+      payload: { product, selection: selection(product, 5) },
     });
 
     expect(state.cart).toHaveLength(0);
@@ -116,12 +131,12 @@ describe('posReducer – ADD_ITEM', () => {
     const product = makeProduct({ price: 10.0, stock: 3 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 2 },
+      payload: { product, selection: selection(product, 2) },
     });
     // Second ADD_ITEM would make qty=4 which exceeds stock=3; state stays unchanged
     state = posReducer(state, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 2 },
+      payload: { product, selection: selection(product, 2) },
     });
 
     expect(state.cart[0].quantity).toBe(2);
@@ -132,11 +147,11 @@ describe('posReducer – ADD_ITEM', () => {
     const p2 = makeProduct({ id: 2, price: 20.0, stock: 5 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product: p1, quantity: 1 },
+      payload: { product: p1, selection: selection(p1, 1) },
     });
     state = posReducer(state, {
       type: 'ADD_ITEM',
-      payload: { product: p2, quantity: 2 },
+      payload: { product: p2, selection: selection(p2, 2) },
     });
 
     expect(state.cart).toHaveLength(2);
@@ -149,10 +164,93 @@ describe('posReducer – ADD_ITEM', () => {
     const product = makeProduct({ price: 9.99, stock: 10 });
     const state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 7 },
+      payload: { product, selection: selection(product, 7) },
     });
 
     expect(state.cart[0].subtotal).toBe(69.93);
+  });
+
+  it('combines the same product only when mode and input unit match', () => {
+    const product = makeProduct({ price: 100, unit: 'kg', is_bulk: true, stock: 10 });
+    let state = posReducer(emptyState, {
+      type: 'ADD_ITEM',
+      payload: { product, selection: selection(product, 200, 'sub', 'g') },
+    });
+    state = posReducer(state, {
+      type: 'ADD_ITEM',
+      payload: { product, selection: selection(product, 300, 'sub', 'g') },
+    });
+    state = posReducer(state, {
+      type: 'ADD_ITEM',
+      payload: { product, selection: selection(product, 0.5, 'base', 'kg') },
+    });
+
+    expect(state.cart).toHaveLength(2);
+    expect(state.cart[0]).toMatchObject({
+      input_mode: 'sub',
+      input_value: 500,
+      input_unit: 'g',
+      quantity: 0.5,
+      subtotal: 50,
+    });
+    expect(state.cart[1]).toMatchObject({
+      input_mode: 'base',
+      input_value: 0.5,
+      input_unit: 'kg',
+      quantity: 0.5,
+      subtotal: 50,
+    });
+  });
+
+  it('recalculates combined amount entries from their accumulated captured value', () => {
+    const product = makeProduct({ price: 80, unit: 'kg', is_bulk: true, stock: 10 });
+    let state = posReducer(emptyState, {
+      type: 'ADD_ITEM',
+      payload: { product, selection: selection(product, 25, 'amount', 'MXN') },
+    });
+    state = posReducer(state, {
+      type: 'ADD_ITEM',
+      payload: { product, selection: selection(product, 25, 'amount', 'MXN') },
+    });
+
+    expect(state.cart).toHaveLength(1);
+    expect(state.cart[0]).toMatchObject({
+      input_value: 50,
+      input_unit: 'MXN',
+      quantity: 0.625,
+      subtotal: 50,
+    });
+  });
+
+  it('checks stock using the recomputed combined input instead of summed rounded lines', () => {
+    const product = makeProduct({ price: 100, unit: 'kg', is_bulk: true, stock: 0.667 });
+    let state = posReducer(emptyState, {
+      type: 'ADD_ITEM',
+      payload: { product, selection: selection(product, 333.5, 'sub', 'g') },
+    });
+    state = posReducer(state, {
+      type: 'ADD_ITEM',
+      payload: { product, selection: selection(product, 333.5, 'sub', 'g') },
+    });
+
+    expect(state.cart).toHaveLength(1);
+    expect(state.cart[0].input_value).toBe(667);
+    expect(state.cart[0].quantity).toBe(0.667);
+  });
+
+  it('checks stock across separate lines of the same product', () => {
+    const product = makeProduct({ price: 100, unit: 'kg', is_bulk: true, stock: 0.6 });
+    let state = posReducer(emptyState, {
+      type: 'ADD_ITEM',
+      payload: { product, selection: selection(product, 200, 'sub', 'g') },
+    });
+    state = posReducer(state, {
+      type: 'ADD_ITEM',
+      payload: { product, selection: selection(product, 0.5, 'base', 'kg') },
+    });
+
+    expect(state.cart).toHaveLength(1);
+    expect(state.cart[0].quantity).toBe(0.2);
   });
 });
 
@@ -161,11 +259,11 @@ describe('posReducer – INCREMENT', () => {
     const product = makeProduct({ price: 19.99, stock: 10 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 1 },
+      payload: { product, selection: selection(product, 1) },
     });
     state = posReducer(state, {
       type: 'INCREMENT',
-      payload: { productId: product.id, delta: 1 },
+      payload: { lineKey: state.cart[0].line_key, delta: 1 },
     });
 
     expect(state.cart[0].quantity).toBe(2);
@@ -177,11 +275,11 @@ describe('posReducer – INCREMENT', () => {
     const product = makeProduct({ price: 10.0, stock: 5 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 1 },
+      payload: { product, selection: selection(product, 1) },
     });
     state = posReducer(state, {
       type: 'INCREMENT',
-      payload: { productId: product.id, delta: -1 },
+      payload: { lineKey: state.cart[0].line_key, delta: -1 },
     });
 
     expect(state.cart).toHaveLength(0);
@@ -192,11 +290,11 @@ describe('posReducer – INCREMENT', () => {
     const product = makeProduct({ price: 10.0, stock: 10 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 0.1 },
+      payload: { product, selection: selection(product, 0.1) },
     });
     state = posReducer(state, {
       type: 'INCREMENT',
-      payload: { productId: product.id, delta: 0.2 },
+      payload: { lineKey: state.cart[0].line_key, delta: 0.2 },
     });
 
     expect(0.1 + 0.2).not.toBe(0.3); // prove the raw float problem
@@ -209,11 +307,11 @@ describe('posReducer – SET_QUANTITY', () => {
     const product = makeProduct({ price: 9.99, stock: 10 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 1 },
+      payload: { product, selection: selection(product, 1) },
     });
     state = posReducer(state, {
       type: 'SET_QUANTITY',
-      payload: { productId: product.id, quantity: 7 },
+      payload: { lineKey: state.cart[0].line_key, quantity: 7 },
     });
 
     expect(state.cart[0].quantity).toBe(7);
@@ -224,11 +322,11 @@ describe('posReducer – SET_QUANTITY', () => {
     const product = makeProduct({ price: 10.0, stock: 5 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 2 },
+      payload: { product, selection: selection(product, 2) },
     });
     state = posReducer(state, {
       type: 'SET_QUANTITY',
-      payload: { productId: product.id, quantity: 0 },
+      payload: { lineKey: state.cart[0].line_key, quantity: 0 },
     });
 
     expect(state.cart).toHaveLength(0);
@@ -240,11 +338,11 @@ describe('posReducer – REMOVE_ITEM', () => {
     const product = makeProduct();
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product, quantity: 1 },
+      payload: { product, selection: selection(product, 1) },
     });
     state = posReducer(state, {
       type: 'REMOVE_ITEM',
-      payload: { productId: product.id },
+      payload: { lineKey: state.cart[0].line_key },
     });
 
     expect(state.cart).toHaveLength(0);
@@ -255,15 +353,15 @@ describe('posReducer – REMOVE_ITEM', () => {
     const p2 = makeProduct({ id: 2, price: 20.0 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product: p1, quantity: 1 },
+      payload: { product: p1, selection: selection(p1, 1) },
     });
     state = posReducer(state, {
       type: 'ADD_ITEM',
-      payload: { product: p2, quantity: 1 },
+      payload: { product: p2, selection: selection(p2, 1) },
     });
     state = posReducer(state, {
       type: 'REMOVE_ITEM',
-      payload: { productId: p1.id },
+      payload: { lineKey: state.cart.find((item) => item.product.id === p1.id)!.line_key },
     });
 
     expect(state.cart).toHaveLength(1);
@@ -277,11 +375,11 @@ describe('posReducer – CLEAR_CART', () => {
     const p2 = makeProduct({ id: 2, price: 20.0 });
     let state = posReducer(emptyState, {
       type: 'ADD_ITEM',
-      payload: { product: p1, quantity: 2 },
+      payload: { product: p1, selection: selection(p1, 2) },
     });
     state = posReducer(state, {
       type: 'ADD_ITEM',
-      payload: { product: p2, quantity: 3 },
+      payload: { product: p2, selection: selection(p2, 3) },
     });
     state = posReducer(state, { type: 'CLEAR_CART' });
 

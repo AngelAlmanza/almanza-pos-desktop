@@ -13,94 +13,108 @@ import {
   Typography,
 } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
-import { Product } from '../../models';
+import { CartItem, Product, SaleQuantitySelection } from '../../models';
+import { getRequestedProductQuantityAfterAdd } from '../../context/PosProvider';
+import type { SaleInputMode } from '../../types';
 import {
   hasSufficientStock,
   isPositiveQuantity,
   multiplyMoney,
   parseNumericInput,
-  roundQuantity,
-  subtractQuantity,
 } from '../../utils/money';
 import {
-  amountToQuantity,
+  buildQuantitySelection,
   getUnitConfig,
-  subUnitToBase,
   UnitConversionError,
 } from '../../utils/unitConversion';
-
-type InputMode = 'base' | 'sub' | 'amount';
+import {
+  getBaseEquivalentLabel,
+  getBasePriceLabel,
+  getPurchaseLabel,
+} from '../../utils/saleItemPresentation';
 
 interface BulkQuantityDialogProps {
   open: boolean;
   product: Product | null;
-  existingCartQty: number;
+  cartItems: CartItem[];
+  editingLineKey?: string;
   mode?: 'add' | 'edit';
-  initialQuantity?: number;
-  onConfirm: (qty: number) => void;
+  initialSelection?: SaleQuantitySelection | null;
+  onConfirm: (selection: SaleQuantitySelection) => void;
   onCancel: () => void;
 }
 
 interface QuantityCalculationResult {
-  quantity: number | null;
+  selection: SaleQuantitySelection | null;
   errorMessage: string | null;
 }
 
 export const BulkQuantityDialog = ({
   open,
   product,
-  existingCartQty,
+  cartItems,
+  editingLineKey,
   mode = 'add',
-  initialQuantity = 0,
+  initialSelection = null,
   onConfirm,
   onCancel,
 }: BulkQuantityDialogProps) => {
-  const [inputMode, setInputMode] = useState<InputMode>('base');
+  const [inputMode, setInputMode] = useState<SaleInputMode>('base');
   const [inputValue, setInputValue] = useState('');
 
   useEffect(() => {
     if (open) {
-      setInputMode('base');
-      setInputValue(initialQuantity > 0 ? String(initialQuantity) : '');
+      setInputMode(initialSelection?.input_mode ?? 'base');
+      setInputValue(initialSelection ? String(initialSelection.input_value) : '');
     }
-  }, [initialQuantity, open, product?.id]);
+  }, [
+    initialSelection?.input_mode,
+    initialSelection?.input_unit,
+    initialSelection?.input_value,
+    open,
+    product?.id,
+  ]);
 
   const config = product ? getUnitConfig(product.unit) : null;
 
   const quantityCalculation = useMemo<QuantityCalculationResult>(() => {
     if (!product) {
-      return { quantity: null, errorMessage: null };
+      return { selection: null, errorMessage: null };
     }
 
     const parsedInput = parseNumericInput(inputValue);
     if (parsedInput === null || parsedInput <= 0) {
-      return { quantity: null, errorMessage: null };
+      return { selection: null, errorMessage: null };
     }
 
     try {
-      switch (inputMode) {
-        case 'base':
-          return { quantity: roundQuantity(parsedInput), errorMessage: null };
-        case 'sub':
-          return {
-            quantity: roundQuantity(subUnitToBase(inputValue, product.unit).toNumber()),
-            errorMessage: null,
-          };
-        case 'amount':
-          return {
-            quantity: roundQuantity(amountToQuantity(inputValue, product.price).toNumber()),
-            errorMessage: null,
-          };
+      const inputUnit = inputMode === 'base'
+        ? product.unit
+        : inputMode === 'sub'
+          ? config?.subUnitCode
+          : 'MXN';
+      if (!inputUnit) {
+        return { selection: null, errorMessage: null };
       }
+
+      return {
+        selection: buildQuantitySelection({
+          input_mode: inputMode,
+          input_value: parsedInput,
+          input_unit: inputUnit,
+        }, product),
+        errorMessage: null,
+      };
     } catch (error) {
       return {
-        quantity: null,
+        selection: null,
         errorMessage: error instanceof UnitConversionError ? error.message : null,
       };
     }
-  }, [inputMode, inputValue, product]);
+  }, [config?.subUnitCode, inputMode, inputValue, product]);
 
-  const quantityInBase = quantityCalculation.quantity;
+  const selection = quantityCalculation.selection;
+  const quantityInBase = selection?.quantity ?? null;
   const conversionError = quantityCalculation.errorMessage;
 
   const estimatedTotal = useMemo(() => {
@@ -108,14 +122,18 @@ export const BulkQuantityDialog = ({
     return multiplyMoney(product.price, quantityInBase);
   }, [quantityInBase, product]);
 
-  const availableStock = product
-    ? subtractQuantity(product.stock, existingCartQty)
+  const cartWithoutEditedLine = editingLineKey
+    ? cartItems.filter((item) => item.line_key !== editingLineKey)
+    : cartItems;
+  const requestedProductQuantity = selection && product
+    ? getRequestedProductQuantityAfterAdd(cartWithoutEditedLine, product, selection)
     : 0;
-
-  const overStock = quantityInBase !== null && !hasSufficientStock(availableStock, quantityInBase);
+  const overStock = selection !== null
+    && product !== null
+    && !hasSufficientStock(product.stock, requestedProductQuantity);
   const isValid = quantityInBase !== null && isPositiveQuantity(quantityInBase) && !overStock;
 
-  const handleModeChange = (_: unknown, newMode: InputMode | null) => {
+  const handleModeChange = (_: unknown, newMode: SaleInputMode | null) => {
     if (newMode) {
       setInputMode(newMode);
       setInputValue('');
@@ -123,10 +141,10 @@ export const BulkQuantityDialog = ({
   };
 
   const handleConfirm = () => {
-    if (quantityInBase && isValid) {
+    if (selection && isValid) {
       setInputMode('base');
       setInputValue('');
-      onConfirm(quantityInBase);
+      onConfirm(selection);
     }
   };
 
@@ -232,7 +250,7 @@ export const BulkQuantityDialog = ({
         )}
 
         {/* Preview */}
-        {quantityInBase !== null && estimatedTotal !== null && config && (
+        {selection && estimatedTotal !== null && config && product && (
           <Box
             sx={{
               p: 2,
@@ -244,9 +262,33 @@ export const BulkQuantityDialog = ({
             }}
           >
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2" color="text.secondary">Cantidad</Typography>
+              <Typography variant="body2" color="text.secondary">Compró</Typography>
               <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                {quantityInBase.toFixed(3)} {config.baseUnitLabel}
+                {getPurchaseLabel({
+                  ...selection,
+                  base_unit: product.unit,
+                  unit_price: product.price,
+                  subtotal: estimatedTotal,
+                })}
+              </Typography>
+            </Box>
+            {selection.input_mode === 'amount' && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2" color="text.secondary">Equivale a</Typography>
+                <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {getBaseEquivalentLabel({
+                    ...selection,
+                    base_unit: product.unit,
+                    unit_price: product.price,
+                    subtotal: estimatedTotal,
+                  })}
+                </Typography>
+              </Box>
+            )}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2" color="text.secondary">Precio base</Typography>
+              <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                {getBasePriceLabel({ base_unit: product.unit, unit_price: product.price })}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -261,7 +303,7 @@ export const BulkQuantityDialog = ({
         {/* Over-stock warning */}
         {overStock && (
           <Alert severity="warning">
-            Stock insuficiente. Disponible: {availableStock.toFixed(3)} {config?.baseUnitLabel}
+            Stock insuficiente. Existencia total: {product?.stock.toFixed(3)} {config?.baseUnitLabel}
           </Alert>
         )}
       </DialogContent>
