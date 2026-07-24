@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { useEffect, useReducer, useState } from 'react';
+import { PrinterSettingsCard } from '../components/settings/PrinterSettingsCard';
 import { SettingRow } from '../components/settings/SettingRow';
 import { IS_DEV, VALUE_TYPE_OPTIONS } from '../constants/Settings';
 import type { CreateSettingDTO } from '../dto';
@@ -188,6 +189,9 @@ export function SettingsPage() {
   }
 
   const grouped = settings.reduce<Record<string, Setting[]>>((acc, s) => {
+    if (s.group_name === 'printer') {
+      return acc;
+    }
     (acc[s.group_name] ??= []).push(s);
     return acc;
   }, {});
@@ -213,6 +217,8 @@ export function SettingsPage() {
       </Box>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <PrinterSettingsCard onToast={showToast} />
+
         {groupKeys.map(group => {
           const rows = grouped[group];
           const meta = GROUP_META[group] ?? {

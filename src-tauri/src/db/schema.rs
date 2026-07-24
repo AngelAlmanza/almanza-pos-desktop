@@ -144,49 +144,131 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
 }
 
 fn seed_default_settings(conn: &rusqlite::Connection) -> Result<(), String> {
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM settings", [], |row| row.get(0))
+    let defaults: &[(&str, &str, &str, &str, &str, i64)] = &[
+        (
+            "business_name",
+            "",
+            "string",
+            "Nombre del negocio",
+            "general",
+            10,
+        ),
+        ("business_address", "", "string", "Dirección", "general", 20),
+        ("business_phone", "", "string", "Teléfono", "general", 30),
+        ("business_rfc", "", "string", "RFC", "general", 40),
+        ("business_logo", "", "image_path", "Logotipo", "general", 50),
+        (
+            "ticket_header",
+            "",
+            "multiline",
+            "Encabezado del ticket",
+            "ticket",
+            10,
+        ),
+        (
+            "ticket_footer",
+            "",
+            "multiline",
+            "Pie del ticket",
+            "ticket",
+            20,
+        ),
+        (
+            "printer_enabled",
+            "false",
+            "boolean",
+            "Impresora habilitada",
+            "printer",
+            10,
+        ),
+        (
+            "printer_auto_print_sale",
+            "false",
+            "boolean",
+            "Auto imprimir venta",
+            "printer",
+            20,
+        ),
+        (
+            "printer_transport",
+            "usb",
+            "string",
+            "Transporte de impresora",
+            "printer",
+            30,
+        ),
+        (
+            "printer_display_name",
+            "",
+            "string",
+            "Nombre de la impresora",
+            "printer",
+            40,
+        ),
+        (
+            "printer_usb_vendor_id",
+            "",
+            "string",
+            "Vendor ID USB",
+            "printer",
+            50,
+        ),
+        (
+            "printer_usb_product_id",
+            "",
+            "string",
+            "Product ID USB",
+            "printer",
+            60,
+        ),
+        (
+            "printer_port_hint",
+            "",
+            "string",
+            "Puerto sugerido",
+            "printer",
+            70,
+        ),
+        (
+            "printer_paper_size",
+            "58mm",
+            "string",
+            "Tamano de papel",
+            "printer",
+            80,
+        ),
+        (
+            "printer_dpi",
+            "203",
+            "number",
+            "DPI de impresora",
+            "printer",
+            90,
+        ),
+        (
+            "printer_cut_type",
+            "partial",
+            "string",
+            "Tipo de corte",
+            "printer",
+            100,
+        ),
+        (
+            "printer_encoding",
+            "UTF-8",
+            "string",
+            "Encoding",
+            "printer",
+            110,
+        ),
+    ];
+
+    for (key, value, value_type, label, group_name, sort_order) in defaults {
+        conn.execute(
+            "INSERT OR IGNORE INTO settings (key, value, value_type, label, group_name, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![key, value, value_type, label, group_name, sort_order],
+        )
         .map_err(|e| e.to_string())?;
-
-    if count == 0 {
-        let defaults: &[(&str, &str, &str, &str, &str, i64)] = &[
-            (
-                "business_name",
-                "",
-                "string",
-                "Nombre del negocio",
-                "general",
-                10,
-            ),
-            ("business_address", "", "string", "Dirección", "general", 20),
-            ("business_phone", "", "string", "Teléfono", "general", 30),
-            ("business_rfc", "", "string", "RFC", "general", 40),
-            ("business_logo", "", "image_path", "Logotipo", "general", 50),
-            (
-                "ticket_header",
-                "",
-                "multiline",
-                "Encabezado del ticket",
-                "ticket",
-                10,
-            ),
-            (
-                "ticket_footer",
-                "",
-                "multiline",
-                "Pie del ticket",
-                "ticket",
-                20,
-            ),
-        ];
-
-        for (key, value, value_type, label, group_name, sort_order) in defaults {
-            conn.execute(
-                "INSERT INTO settings (key, value, value_type, label, group_name, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![key, value, value_type, label, group_name, sort_order],
-            )
-            .map_err(|e| e.to_string())?;
-        }
     }
 
     Ok(())

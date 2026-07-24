@@ -108,6 +108,20 @@ export interface CreateSettingDTO {
   sort_order?: number;
 }
 
+export interface SavePrinterConfigDTO {
+  enabled: boolean;
+  auto_print_sale: boolean;
+  transport: string;
+  display_name: string;
+  usb_vendor_id: string | null;
+  usb_product_id: string | null;
+  port_hint: string | null;
+  paper_size: string;
+  dpi: number;
+  cut_type: 'full' | 'partial' | 'none';
+  encoding: string;
+}
+
 // Inventory DTOs
 export interface CreateInventoryAdjustmentDTO {
   product_id: number;

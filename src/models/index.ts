@@ -162,6 +162,32 @@ export interface Setting {
   updated_at: string;
 }
 
+export type PrinterPaperSize = '58mm' | '80mm' | '100mm' | string;
+export type PrinterCutType = 'full' | 'partial' | 'none';
+
+export interface PrinterSettings {
+  enabled: boolean;
+  auto_print_sale: boolean;
+  transport: string;
+  display_name: string;
+  usb_vendor_id: string | null;
+  usb_product_id: string | null;
+  port_hint: string | null;
+  paper_size: PrinterPaperSize;
+  dpi: number;
+  cut_type: PrinterCutType;
+  encoding: string;
+}
+
+export interface PrinterInfo {
+  id: string;
+  name: string;
+  vendor_id: string;
+  product_id: string;
+  port_name: string | null;
+  transport: string;
+}
+
 // Cart item for POS
 export interface CartItem {
   product: Product;

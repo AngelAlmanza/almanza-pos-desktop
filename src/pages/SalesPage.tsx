@@ -37,12 +37,12 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { useAuth } from "../context/AuthContext";
 import type { Sale, User } from "../models";
+import { PrinterService } from "../services/PrinterService";
 import { SaleService } from "../services/SaleService";
 import { UserService } from "../services/UserService";
 import { cleanError } from "../utils/CleanError";
 import { formatCurrency } from "../utils/FormatCurrency";
 import { paymentMethodLabel } from "../utils/PaymentLabels";
-import { TicketPrinter } from "../utils/TicketPrinter";
 
 moment.locale("es");
 
@@ -149,8 +149,7 @@ export function SalesPage() {
 
   const handlePrint = async (saleId: number) => {
     try {
-      const sale = await SaleService.getById(saleId);
-      TicketPrinter.printSaleTicket(sale);
+      await PrinterService.printSaleTicket(saleId);
     } catch (err) {
       setError(String(err));
     } finally {

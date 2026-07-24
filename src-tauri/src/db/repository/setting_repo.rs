@@ -2,6 +2,7 @@ use crate::db::Database;
 use crate::error::{AppError, AppResult};
 use crate::models::setting::{CreateSettingRequest, Setting};
 use rusqlite::params;
+use std::collections::HashMap;
 
 const SELECT_QUERY: &str = "SELECT key, value, value_type, label, description, group_name, sort_order, created_at, updated_at FROM settings";
 
@@ -21,7 +22,10 @@ fn row_to_setting(row: &rusqlite::Row) -> rusqlite::Result<Setting> {
 
 pub fn find_all(db: &Database) -> AppResult<Vec<Setting>> {
     let conn = db.conn.lock()?;
-    let mut stmt = conn.prepare(&format!("{} ORDER BY group_name, sort_order, key", SELECT_QUERY))?;
+    let mut stmt = conn.prepare(&format!(
+        "{} ORDER BY group_name, sort_order, key",
+        SELECT_QUERY
+    ))?;
     let settings = stmt
         .query_map([], row_to_setting)?
         .collect::<Result<Vec<_>, _>>()?;
@@ -88,5 +92,38 @@ pub fn create(db: &Database, req: &CreateSettingRequest) -> AppResult<Setting> {
 pub fn delete(db: &Database, key: &str) -> AppResult<()> {
     let conn = db.conn.lock()?;
     conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
+    Ok(())
+}
+
+pub fn find_values_by_keys(
+    db: &Database,
+    keys: &[&str],
+) -> AppResult<HashMap<String, Option<String>>> {
+    let conn = db.conn.lock()?;
+    let mut values = HashMap::with_capacity(keys.len());
+
+    for key in keys {
+        let value = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                params![key],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .ok()
+            .flatten();
+        values.insert((*key).to_string(), value);
+    }
+
+    Ok(values)
+}
+
+pub fn upsert_value(db: &Database, key: &str, value: Option<&str>) -> AppResult<()> {
+    let conn = db.conn.lock()?;
+    conn.execute(
+        "INSERT INTO settings (key, value, value_type, label, group_name, sort_order, created_at, updated_at)
+            VALUES (?1, ?2, 'string', ?1, 'printer', 0, datetime('now', 'localtime'), datetime('now', 'localtime'))
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now', 'localtime')",
+        params![key, value],
+    )?;
     Ok(())
 }

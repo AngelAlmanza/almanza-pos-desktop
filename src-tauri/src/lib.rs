@@ -3,6 +3,7 @@ mod constants;
 mod db;
 mod error;
 mod models;
+mod printer;
 mod utils;
 
 use commands::auth_commands::*;
@@ -10,6 +11,7 @@ use commands::cash_register_commands::*;
 use commands::category_commands::*;
 use commands::inventory_commands::*;
 use commands::product_commands::*;
+use commands::printer_commands::*;
 use commands::sale_commands::*;
 use commands::setting_commands::*;
 use commands::user_commands::*;
@@ -56,6 +58,12 @@ pub fn run() {
             create_product,
             update_product,
             delete_product,
+            // Printer
+            get_printer_config,
+            save_printer_config,
+            detect_usb_printers,
+            test_printer,
+            print_sale_ticket,
             // Cash Register
             get_cash_register_sessions,
             get_cash_register_sessions_by_date_range,

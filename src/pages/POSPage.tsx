@@ -22,14 +22,15 @@ import { SaleSummaryTable } from "../components/pos/SaleSummaryTable";
 import { useAuth } from "../context/AuthContext";
 import { usePos } from "../context/PosProvider";
 import type { Sale } from "../models";
+import { PrinterService } from "../services/PrinterService";
 import { SaleService } from "../services/SaleService";
-import { TicketPrinter } from "../utils/TicketPrinter";
 
 export function POSPage() {
   const { user, cashRegisterSession } = useAuth();
   const { cart, dispatch, error, setError } = usePos();
   const [showPayment, setShowPayment] = useState(false);
   const [success, setSuccess] = useState("");
+  const [warning, setWarning] = useState("");
   const [lastSale, setLastSale] = useState<Sale | null>(null);
 
   const [useCashMxn, setUseCashMxn] = useState(true);
@@ -135,8 +136,36 @@ export function POSPage() {
         `Venta #${sale.id} completada. Cambio: $${sale.change_amount.toFixed(2)}`,
       );
       setTimeout(() => setSuccess(""), 5000);
+      await tryAutoPrintSale(sale.id);
+    } catch (err) {
+      setError(String(err));
+      setTimeout(() => setError(""), 5000);
+    }
+  };
 
-      TicketPrinter.printSaleTicket(sale);
+  const tryAutoPrintSale = async (saleId: number) => {
+    try {
+      const config = await PrinterService.getConfig();
+      if (!config.enabled || !config.auto_print_sale) {
+        return;
+      }
+
+      await PrinterService.printSaleTicket(saleId);
+    } catch (err) {
+      setWarning(
+        `La venta se guardó, pero la impresión falló: ${String(err)}`,
+      );
+      setTimeout(() => setWarning(""), 6000);
+    }
+  };
+
+  const handleReprintLastSale = async () => {
+    if (!lastSale) return;
+
+    try {
+      await PrinterService.printSaleTicket(lastSale.id);
+      setSuccess(`Ticket de venta #${lastSale.id} enviado a la impresora`);
+      setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       setError(String(err));
       setTimeout(() => setError(""), 5000);
@@ -185,6 +214,15 @@ export function POSPage() {
             onClose={() => setSuccess("")}
           >
             {success}
+          </Alert>
+        )}
+        {warning && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 1 }}
+            onClose={() => setWarning("")}
+          >
+            {warning}
           </Alert>
         )}
         <PosSearchBar />
@@ -314,7 +352,7 @@ export function POSPage() {
                 size="small"
                 startIcon={<Print sx={{ fontSize: "0.9rem !important" }} />}
                 sx={{ mt: 1, color: "text.secondary", fontSize: "0.75rem" }}
-                onClick={() => TicketPrinter.printSaleTicket(lastSale)}
+                onClick={handleReprintLastSale}
               >
                 Reimprimir último ticket
               </Button>
