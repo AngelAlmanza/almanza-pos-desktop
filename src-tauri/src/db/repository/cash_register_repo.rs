@@ -1,6 +1,7 @@
 use crate::db::Database;
 use crate::error::{AppError, AppResult};
 use crate::models::cash_register::{CashRegisterSession, CashRegisterSummary, SessionStatus};
+use crate::models::customer::CustomerMovementType;
 use crate::models::sale::SaleStatus;
 use crate::utils::money;
 use rusqlite::params;
@@ -157,6 +158,9 @@ struct SessionSalesBreakdown {
     sales_cash_usd: f64,
     sales_transfer: f64,
     total_change_given: f64,
+    account_payments_cash_mxn: f64,
+    account_payments_cash_usd: f64,
+    account_payments_transfer: f64,
 }
 
 fn query_sales_breakdown(
@@ -182,10 +186,17 @@ fn query_sales_breakdown(
                 sales_cash_usd: row.get(3)?,
                 sales_transfer: row.get(4)?,
                 total_change_given: row.get(5)?,
+                account_payments_cash_mxn: 0.0,
+                account_payments_cash_usd: 0.0,
+                account_payments_transfer: 0.0,
             })
         },
     )?;
 
+    let account_payments: (f64, f64, f64) = conn.query_row(
+        "SELECT COALESCE(SUM(payment_cash_mxn), 0), COALESCE(SUM(payment_cash_usd), 0), COALESCE(SUM(payment_transfer), 0) FROM customer_account_movements WHERE cash_register_session_id = ?1 AND movement_type = ?2",
+        params![session_id, CustomerMovementType::AccountPayment], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )?;
     Ok(SessionSalesBreakdown {
         total_sales: money::round2(row.total_sales),
         total_transactions: row.total_transactions,
@@ -193,6 +204,9 @@ fn query_sales_breakdown(
         sales_cash_usd: money::round2(row.sales_cash_usd),
         sales_transfer: money::round2(row.sales_transfer),
         total_change_given: money::round2(row.total_change_given),
+        account_payments_cash_mxn: money::round2(account_payments.0),
+        account_payments_cash_usd: money::round2(account_payments.1),
+        account_payments_transfer: money::round2(account_payments.2),
     })
 }
 
@@ -204,10 +218,19 @@ fn build_summary(
     let actual_usd = session.closing_cash_usd.unwrap_or(0.0);
 
     let expected_mxn = money::sub_money(
-        money::add_money(session.opening_amount, breakdown.sales_cash_mxn),
+        money::add_money(
+            session.opening_amount,
+            money::add_money(
+                breakdown.sales_cash_mxn,
+                breakdown.account_payments_cash_mxn,
+            ),
+        ),
         breakdown.total_change_given,
     );
-    let expected_usd = breakdown.sales_cash_usd;
+    let expected_usd = money::add_money(
+        breakdown.sales_cash_usd,
+        breakdown.account_payments_cash_usd,
+    );
 
     CashRegisterSummary {
         session,
@@ -216,6 +239,9 @@ fn build_summary(
         sales_cash_mxn: breakdown.sales_cash_mxn,
         sales_cash_usd: breakdown.sales_cash_usd,
         sales_transfer: breakdown.sales_transfer,
+        account_payments_cash_mxn: breakdown.account_payments_cash_mxn,
+        account_payments_cash_usd: breakdown.account_payments_cash_usd,
+        account_payments_transfer: breakdown.account_payments_transfer,
         total_change_given: breakdown.total_change_given,
         expected_cash_mxn: expected_mxn,
         expected_cash_usd: expected_usd,

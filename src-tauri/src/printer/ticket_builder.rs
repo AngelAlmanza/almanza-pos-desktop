@@ -37,6 +37,16 @@ pub fn build_sale_ticket(
         "Metodo de pago: {}",
         payment_method_label(&sale.payment_method)
     ));
+    if sale.credit_amount > 0.0 {
+        if let Some(customer) = sale
+            .customer_name
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
+            footer_lines.push(format!("Cliente: {}", customer.trim()));
+        }
+        footer_lines.push(format!("Adeudo pendiente: ${:.2}", sale.credit_amount));
+    }
     if let Some(extra) = ticket_footer.filter(|value| !value.trim().is_empty()) {
         footer_lines.push(extra.trim().to_string());
     }
@@ -89,6 +99,9 @@ mod tests {
             user_id: 1,
             user_name: Some("Cajero".to_string()),
             total: 20.0,
+            customer_id: None,
+            customer_name: None,
+            credit_amount: 0.0,
             payment_method: "cash_mxn".to_string(),
             payment_amount: 20.0,
             payment_cash_mxn: 20.0,
@@ -119,5 +132,36 @@ mod tests {
         assert_eq!(ticket.items[0].input_mode.as_deref(), Some("sub"));
         assert_eq!(ticket.items[0].input_value, Some(200.0));
         assert_eq!(ticket.items[0].input_unit.as_deref(), Some("g"));
+    }
+
+    #[test]
+    fn includes_pending_credit_in_the_ticket() {
+        let mut sale = Sale {
+            id: 2,
+            cash_register_session_id: 1,
+            user_id: 1,
+            user_name: None,
+            total: 100.0,
+            customer_id: Some(3),
+            customer_name: Some("Ana".to_string()),
+            credit_amount: 40.0,
+            payment_method: "cash_mxn".to_string(),
+            payment_amount: 60.0,
+            payment_cash_mxn: 60.0,
+            payment_cash_usd: 0.0,
+            payment_transfer: 0.0,
+            exchange_rate: None,
+            change_amount: 0.0,
+            status: SaleStatus::Completed,
+            created_at: "2026-01-01".to_string(),
+            items: Vec::new(),
+        };
+        let ticket = build_sale_ticket(&sale, None, None, None, None);
+        assert!(ticket.footer.unwrap().contains("Adeudo pendiente: $40.00"));
+        sale.credit_amount = 0.0;
+        assert!(!build_sale_ticket(&sale, None, None, None, None)
+            .footer
+            .unwrap()
+            .contains("Adeudo pendiente"));
     }
 }

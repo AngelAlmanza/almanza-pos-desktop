@@ -1,5 +1,6 @@
 pub mod cash_register_repo;
 pub mod category_repo;
+pub mod customer_repo;
 pub mod inventory_repo;
 pub mod product_repo;
 pub mod sale_repo;

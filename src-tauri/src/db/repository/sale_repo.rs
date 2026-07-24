@@ -1,15 +1,16 @@
 use crate::db::Database;
 use crate::error::{AppError, AppResult};
+use crate::models::customer::CustomerMovementType;
 use crate::models::sale::{Sale, SaleInputMode, SaleItem, SaleStatus, TopProduct};
 use crate::utils::money;
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 
 const SALE_SELECT: &str = "\
     SELECT s.id, s.cash_register_session_id, s.user_id, u.full_name, \
-            s.total, s.payment_method, s.payment_amount, \
+            s.total, s.customer_id, c.name, s.credit_amount, s.payment_method, s.payment_amount, \
             s.payment_cash_mxn, s.payment_cash_usd, s.payment_transfer, \
             s.exchange_rate, s.change_amount, s.status, s.created_at \
-    FROM sales s JOIN users u ON s.user_id = u.id";
+    FROM sales s JOIN users u ON s.user_id = u.id LEFT JOIN customers c ON s.customer_id = c.id";
 
 pub struct PreparedSaleItem {
     pub product_id: i64,
@@ -30,15 +31,18 @@ fn row_to_sale(row: &rusqlite::Row) -> rusqlite::Result<Sale> {
         user_id: row.get(2)?,
         user_name: row.get(3)?,
         total: row.get(4)?,
-        payment_method: row.get(5)?,
-        payment_amount: row.get(6)?,
-        payment_cash_mxn: row.get(7)?,
-        payment_cash_usd: row.get(8)?,
-        payment_transfer: row.get(9)?,
-        exchange_rate: row.get(10)?,
-        change_amount: row.get(11)?,
-        status: row.get(12)?,
-        created_at: row.get(13)?,
+        customer_id: row.get(5)?,
+        customer_name: row.get(6)?,
+        credit_amount: money::round2(row.get(7)?),
+        payment_method: row.get(8)?,
+        payment_amount: row.get(9)?,
+        payment_cash_mxn: row.get(10)?,
+        payment_cash_usd: row.get(11)?,
+        payment_transfer: row.get(12)?,
+        exchange_rate: row.get(13)?,
+        change_amount: row.get(14)?,
+        status: row.get(15)?,
+        created_at: row.get(16)?,
         items: Vec::new(),
     })
 }
@@ -95,20 +99,51 @@ pub fn create(
     payment_transfer: f64,
     exchange_rate: Option<f64>,
     change_amount: f64,
+    customer_id: Option<i64>,
+    credit_amount: f64,
     items: &[PreparedSaleItem],
 ) -> AppResult<Sale> {
     let mut conn = db.conn.lock()?;
     let tx = conn.transaction()?;
 
+    if credit_amount > 0.0 {
+        let customer_id = customer_id.ok_or_else(|| {
+            AppError::Validation("Una venta fiada requiere seleccionar un cliente".to_string())
+        })?;
+        let customer: Option<(bool, f64)> = tx
+            .query_row(
+                "SELECT active, credit_limit FROM customers WHERE id = ?1",
+                params![customer_id],
+                |row| Ok((row.get::<_, i64>(0)? != 0, row.get(1)?)),
+            )
+            .optional()?;
+        let (active, credit_limit) =
+            customer.ok_or_else(|| AppError::NotFound("Cliente no encontrado".to_string()))?;
+        if !active {
+            return Err(AppError::Conflict(
+                "El cliente seleccionado está inactivo".to_string(),
+            ));
+        }
+        let balance: f64 = tx.query_row("SELECT COALESCE(SUM(amount), 0) FROM customer_account_movements WHERE customer_id = ?1", params![customer_id], |row| row.get(0))?;
+        if money::add_money(balance, credit_amount) > money::round2(credit_limit) {
+            return Err(AppError::Validation(format!(
+                "La venta excede el límite de crédito del cliente. Disponible: ${:.2}",
+                money::sub_money(credit_limit, balance)
+            )));
+        }
+    }
+
     tx.execute(
-        "INSERT INTO sales (cash_register_session_id, user_id, total, payment_method, \
+        "INSERT INTO sales (cash_register_session_id, user_id, total, customer_id, credit_amount, payment_method, \
             payment_amount, payment_cash_mxn, payment_cash_usd, payment_transfer, \
             exchange_rate, change_amount) \
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             cash_register_session_id,
             user_id,
             total,
+            customer_id,
+            money::round2(credit_amount),
             payment_method,
             payment_amount,
             payment_cash_mxn,
@@ -120,6 +155,13 @@ pub fn create(
     )?;
 
     let sale_id = tx.last_insert_rowid();
+
+    if credit_amount > 0.0 {
+        tx.execute(
+            "INSERT INTO customer_account_movements (customer_id, sale_id, cash_register_session_id, user_id, movement_type, amount) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![customer_id, sale_id, cash_register_session_id, user_id, CustomerMovementType::SaleCharge, money::round2(credit_amount)],
+        )?;
+    }
 
     for item in items {
         let quantity = money::round3(item.quantity);
@@ -311,16 +353,21 @@ pub fn cancel_sale(db: &Database, sale_id: i64) -> AppResult<()> {
     let mut conn = db.conn.lock()?;
     let tx = conn.transaction()?;
 
-    let status: SaleStatus = tx
+    let (status, credit_amount): (SaleStatus, f64) = tx
         .query_row(
-            "SELECT status FROM sales WHERE id = ?1",
+            "SELECT status, credit_amount FROM sales WHERE id = ?1",
             params![sale_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|_| AppError::NotFound("Venta no encontrada".to_string()))?;
 
     if status == SaleStatus::Cancelled {
         return Err(AppError::Conflict("La venta ya está cancelada".to_string()));
+    }
+    if money::round2(credit_amount) > 0.0 {
+        return Err(AppError::Conflict(
+            "Las ventas fiadas no se pueden cancelar".to_string(),
+        ));
     }
 
     let items: Vec<(i64, f64)> = {
@@ -384,6 +431,8 @@ mod tests {
                 cash_register_session_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
                 total REAL NOT NULL,
+                customer_id INTEGER,
+                credit_amount REAL NOT NULL DEFAULT 0,
                 payment_method TEXT NOT NULL,
                 payment_amount REAL NOT NULL,
                 payment_cash_mxn REAL NOT NULL,
@@ -406,6 +455,31 @@ mod tests {
                 input_unit TEXT,
                 unit_price REAL NOT NULL,
                 subtotal REAL NOT NULL
+            );
+            CREATE TABLE customers (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                credit_limit REAL NOT NULL DEFAULT 0,
+                phone TEXT,
+                notes TEXT,
+                created_at TEXT NOT NULL DEFAULT '2026-01-01 00:00:00',
+                updated_at TEXT NOT NULL DEFAULT '2026-01-01 00:00:00'
+            );
+            CREATE TABLE customer_account_movements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER NOT NULL,
+                sale_id INTEGER,
+                cash_register_session_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                movement_type TEXT NOT NULL,
+                amount REAL NOT NULL,
+                payment_cash_mxn REAL NOT NULL DEFAULT 0,
+                payment_cash_usd REAL NOT NULL DEFAULT 0,
+                payment_transfer REAL NOT NULL DEFAULT 0,
+                exchange_rate REAL,
+                notes TEXT,
+                created_at TEXT NOT NULL DEFAULT '2026-01-01 00:00:00'
             );
             INSERT INTO users (id, full_name) VALUES (1, 'Test User');",
         )
@@ -443,6 +517,8 @@ mod tests {
             0.0,
             None,
             0.0,
+            None,
+            0.0,
             &[PreparedSaleItem {
                 product_id: 1,
                 product_name: "Producto a granel".to_string(),
@@ -469,5 +545,61 @@ mod tests {
 
         assert!(cancel_sale(&db, sale.id).is_err());
         assert_eq!(product_stock(&db), 1.0);
+    }
+
+    #[test]
+    fn credit_sale_creates_a_charge_and_cannot_be_cancelled() {
+        let db = test_database(5.0);
+        db.conn
+            .lock()
+            .unwrap()
+            .execute(
+                "INSERT INTO customers (id, name, active, credit_limit) VALUES (2, 'Cliente fiado', 1, 100)",
+                [],
+            )
+            .unwrap();
+
+        let sale = create(
+            &db,
+            1,
+            1,
+            20.0,
+            "cash_mxn",
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            None,
+            0.0,
+            Some(2),
+            20.0,
+            &[PreparedSaleItem {
+                product_id: 1,
+                product_name: "Producto".to_string(),
+                quantity: 1.0,
+                base_unit: "pieza".to_string(),
+                input_mode: SaleInputMode::Base,
+                input_value: 1.0,
+                input_unit: "pieza".to_string(),
+                unit_price: 20.0,
+                subtotal: 20.0,
+            }],
+        )
+        .unwrap();
+
+        assert_eq!(sale.credit_amount, 20.0);
+        let balance: f64 = db
+            .conn
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT SUM(amount) FROM customer_account_movements WHERE customer_id = 2",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(balance, 20.0);
+        assert!(cancel_sale(&db, sale.id).is_err());
+        assert_eq!(product_stock(&db), 4.0);
     }
 }

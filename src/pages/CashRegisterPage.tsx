@@ -683,6 +683,14 @@ export function CashRegisterPage() {
                     value={formatCurrency(summary.sales_cash_mxn)}
                   />
                 </Grid>
+                <Grid size={12}>
+                  <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, color: "text.secondary", display: "block", mt: 1 }}>
+                    Pagos a Cuenta Recibidos
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6, md: 4 }}><SummaryCard label="Efectivo MXN" value={formatCurrency(summary.account_payments_cash_mxn)} /></Grid>
+                <Grid size={{ xs: 6, md: 4 }}><SummaryCard label="Efectivo USD" value={`$${summary.account_payments_cash_usd.toFixed(2)} USD`} /></Grid>
+                <Grid size={{ xs: 6, md: 4 }}><SummaryCard label="Transferencias" value={formatCurrency(summary.account_payments_transfer)} /></Grid>
                 <Grid size={{ xs: 6, md: 4 }}>
                   <SummaryCard
                     label="Efectivo USD"

@@ -1,6 +1,7 @@
-import { Payment, Print, ShoppingCart } from "@mui/icons-material";
+import { AccountBalanceWallet, Payment, PersonSearch, Print, ShoppingCart } from "@mui/icons-material";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -13,6 +14,8 @@ import {
   Divider,
   FormControlLabel,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import { useMemo, useState } from 'react';
@@ -20,9 +23,11 @@ import { PosSearchBar } from '../components/pos/PosSearchBar';
 import { SaleSummaryTable } from '../components/pos/SaleSummaryTable';
 import { useAuth } from '../context/AuthContext';
 import { usePos } from '../context/PosProvider';
-import type { Sale } from '../models';
+import type { Customer, Sale } from '../models';
+import { CustomerService } from '../services/CustomerService';
 import { PrinterService } from '../services/PrinterService';
 import { SaleService } from '../services/SaleService';
+import { formatCurrency } from '../utils/FormatCurrency';
 import {
   calcChange,
   isPaymentSufficient,
@@ -50,6 +55,9 @@ export function POSPage() {
   const [amountMxn, setAmountMxn] = useState('');
   const [amountUsd, setAmountUsd] = useState('');
   const [amountTransfer, setAmountTransfer] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [paymentMode, setPaymentMode] = useState<'paid' | 'credit'>('paid');
 
   const exchangeRate = useMemo(
     () => cashRegisterSession?.exchange_rate ?? null,
@@ -92,26 +100,56 @@ export function POSPage() {
     () => isPaymentSufficient(total, totalPaid),
     [total, totalPaid],
   );
+  const creditAmount = useMemo(() => Math.max(0, total - totalPaid), [total, totalPaid]);
+  const creditAvailable = selectedCustomer
+    ? Math.max(0, selectedCustomer.credit_limit - selectedCustomer.balance)
+    : 0;
+  const isCreditMode = paymentMode === 'credit';
+  const canCompleteSale = paymentIsSufficient || (isCreditMode && creditAmount > 0 && selectedCustomer !== null);
 
   const resetPaymentForm = () => {
+    setPaymentMode('paid');
     setUseCashMxn(true);
     setUseCashUsd(false);
     setUseTransfer(false);
     setAmountMxn('');
     setAmountUsd('');
     setAmountTransfer('');
+    setSelectedCustomer(null);
   };
 
   const openPaymentDialog = () => {
     resetPaymentForm();
     setAmountMxn(total.toFixed(2));
+    void CustomerService.getActive().then(setCustomers).catch((err: unknown) => setError(String(err)));
     setShowPayment(true);
+  };
+
+  const changePaymentMode = (_: React.MouseEvent<HTMLElement>, mode: 'paid' | 'credit' | null) => {
+    if (!mode) return;
+    setPaymentMode(mode);
+    if (mode === 'credit') {
+      setUseCashMxn(false);
+      setUseCashUsd(false);
+      setUseTransfer(false);
+      setAmountMxn('');
+      setAmountUsd('');
+      setAmountTransfer('');
+      return;
+    }
+    setSelectedCustomer(null);
+    setUseCashMxn(true);
+    setUseCashUsd(false);
+    setUseTransfer(false);
+    setAmountMxn(total.toFixed(2));
+    setAmountUsd('');
+    setAmountTransfer('');
   };
 
   const handlePayment = async () => {
     if (!user || !cashRegisterSession) return;
-    if (!paymentIsSufficient) {
-      setError('Monto de pago insuficiente');
+    if (!canCompleteSale) {
+      setError('Completa el pago o selecciona un cliente para registrar el adeudo');
       return;
     }
 
@@ -122,6 +160,7 @@ export function POSPage() {
         payment_cash_mxn: paymentMxn,
         payment_cash_usd: paymentUsd,
         payment_transfer: paymentTransfer,
+        customer_id: selectedCustomer?.id,
         items: cart.map((item) => ({
           product_id: item.product.id,
           quantity: item.quantity,
@@ -135,9 +174,9 @@ export function POSPage() {
       dispatch({ type: 'CLEAR_CART' });
       resetPaymentForm();
       setShowPayment(false);
-      setSuccess(
-        `Venta #${sale.id} completada. Cambio: $${sale.change_amount.toFixed(2)}`,
-      );
+      setSuccess(sale.credit_amount > 0
+        ? `Venta #${sale.id} completada. Adeudo registrado: $${sale.credit_amount.toFixed(2)}`
+        : `Venta #${sale.id} completada. Cambio: $${sale.change_amount.toFixed(2)}`);
       setTimeout(() => setSuccess(''), 5000);
       await tryAutoPrintSale(sale.id);
     } catch (err) {
@@ -412,11 +451,51 @@ export function POSPage() {
               letterSpacing: '0.06em',
               color: 'text.secondary',
               display: 'block',
+              mb: 1,
+            }}
+          >
+            Tipo de cobro
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            fullWidth
+            value={paymentMode}
+            onChange={changePaymentMode}
+            size="small"
+            sx={{ mb: 2 }}
+          >
+            <ToggleButton value="paid"><Payment sx={{ mr: 1, fontSize: 18 }} />Pago completo</ToggleButton>
+            <ToggleButton value="credit"><AccountBalanceWallet sx={{ mr: 1, fontSize: 18 }} />Fiar / anticipo</ToggleButton>
+          </ToggleButtonGroup>
+
+          <Typography
+            variant='caption'
+            sx={{
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: 'text.secondary',
+              display: 'block',
               mb: 1.5,
             }}
           >
             Métodos de pago
           </Typography>
+
+          {isCreditMode && (
+            <Box sx={{ mb: 2, p: 1.75, borderRadius: 1.5, backgroundColor: 'rgba(193,125,17,0.07)', border: '1px solid rgba(193,125,17,0.22)' }}>
+              <Typography variant="subtitle2" color="warning.dark">Cuenta del cliente</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25 }}>Selecciona quién asume el saldo pendiente. El anticipo se captura abajo.</Typography>
+              <Autocomplete
+                options={customers}
+                value={selectedCustomer}
+                onChange={(_, value) => setSelectedCustomer(value)}
+                getOptionLabel={(customer) => customer.name}
+                renderInput={(params) => <TextField {...params} label="Cliente obligatorio" size="small" />}
+                renderOption={(props, customer) => <li {...props} key={customer.id}><PersonSearch fontSize="small" style={{ marginRight: 8 }} />{customer.name} — adeudo {formatCurrency(customer.balance)} · disponible {formatCurrency(Math.max(0, customer.credit_limit - customer.balance))}</li>}
+              />
+              {selectedCustomer && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>Adeudo actual: {formatCurrency(selectedCustomer.balance)} · Crédito disponible: {formatCurrency(creditAvailable)}</Typography>}
+            </Box>
+          )}
 
           {/* Cash MXN */}
           <Box
@@ -460,7 +539,7 @@ export function POSPage() {
                 sx={{ mt: 0.5 }}
                 slotProps={{ htmlInput: { step: '0.01', min: '0' } }}
                 onKeyDown={(e) =>
-                  e.key === 'Enter' && paymentIsSufficient && handlePayment()
+                    e.key === 'Enter' && canCompleteSale && handlePayment()
                 }
               />
             )}
@@ -510,7 +589,7 @@ export function POSPage() {
                     slotProps={{ htmlInput: { step: '0.01', min: '0' } }}
                     onKeyDown={(e) =>
                       e.key === 'Enter' &&
-                      paymentIsSufficient &&
+                      canCompleteSale &&
                       handlePayment()
                     }
                   />
@@ -573,7 +652,7 @@ export function POSPage() {
                 sx={{ mt: 0.5 }}
                 slotProps={{ htmlInput: { step: '0.01', min: '0' } }}
                 onKeyDown={(e) =>
-                  e.key === 'Enter' && paymentIsSufficient && handlePayment()
+                  e.key === 'Enter' && canCompleteSale && handlePayment()
                 }
               />
             )}
@@ -593,6 +672,16 @@ export function POSPage() {
               ${totalPaid.toFixed(2)} MXN
             </Typography>
           </Box>
+
+          {isCreditMode && (
+            <Box sx={{ mt: 1.5, p: 1.75, borderRadius: 1.5, backgroundColor: 'rgba(193,125,17,0.07)', border: '1px solid rgba(193,125,17,0.22)' }}>
+              <Typography variant="caption" color="warning.dark" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>Cierre de venta</Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: .75 }}><Typography variant="body2" color="text.secondary">Total</Typography><Typography variant="body2" fontWeight={600}>{formatCurrency(total)}</Typography></Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: .5 }}><Typography variant="body2" color="text.secondary">Cobrado hoy</Typography><Typography variant="body2" fontWeight={600} color="success.dark">{formatCurrency(totalPaid)}</Typography></Box>
+              <Divider sx={{ my: 1 }} />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography variant="body2" fontWeight={700}>Queda en cuenta</Typography><Typography variant="body2" fontWeight={700} color="warning.dark">{formatCurrency(creditAmount)}</Typography></Box>
+            </Box>
+          )}
 
           {paymentIsSufficient && (
             <Box
@@ -628,13 +717,19 @@ export function POSPage() {
             </Box>
           )}
 
-          {isPositiveMoney(totalPaid) && !paymentIsSufficient && (
+          {isPositiveMoney(totalPaid) && !paymentIsSufficient && !isCreditMode && (
             <Alert severity='error' sx={{ mt: 1 }} icon={false}>
               <Typography variant='body2'>
                 Faltan: <strong>${subtractMoney(total, totalPaid).toFixed(2)}</strong>{' '}
                 MXN
               </Typography>
             </Alert>
+          )}
+          {isCreditMode && !selectedCustomer && (
+            <Alert severity='info' sx={{ mt: 1 }} icon={false}>Selecciona un cliente para registrar el adeudo.</Alert>
+          )}
+          {isCreditMode && selectedCustomer && creditAmount > creditAvailable && (
+            <Alert severity='error' sx={{ mt: 1 }} icon={false}>El saldo pendiente excede el crédito disponible del cliente.</Alert>
           )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
@@ -644,11 +739,11 @@ export function POSPage() {
           <Button
             variant='contained'
             onClick={handlePayment}
-            disabled={!paymentIsSufficient}
+            disabled={!canCompleteSale || (isCreditMode && creditAmount > creditAvailable)}
             size='large'
             sx={{ px: 3 }}
           >
-            Confirmar Pago
+            {isCreditMode ? 'Confirmar venta fiada' : 'Confirmar pago'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -8,6 +8,7 @@ import {
   OpenInNew,
   PictureAsPdf,
   Receipt,
+  People,
   TableChart,
 } from "@mui/icons-material";
 import {
@@ -369,6 +370,33 @@ export function ReportsPage() {
                 label="Canceladas"
                 accentColor="#b91c1c"
                 iconBg="rgba(185,28,28,0.10)"
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4 }}>
+              <MetricCard
+                icon={<Receipt sx={{ fontSize: 22, color: "#c17d11" }} />}
+                value={formatCurrency(report.total_credit_sold)}
+                label="Vendido Fiado"
+                accentColor="#c17d11"
+                iconBg="rgba(193,125,17,0.10)"
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4 }}>
+              <MetricCard
+                icon={<AttachMoney sx={{ fontSize: 22, color: "#2d6a4f" }} />}
+                value={formatCurrency(report.total_account_collected)}
+                label="Cobrado a Cuenta"
+                accentColor="#2d6a4f"
+                iconBg="rgba(45,106,79,0.10)"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <MetricCard
+                icon={<People sx={{ fontSize: 22, color: "#9a6309" }} />}
+                value={formatCurrency(report.outstanding_balance)}
+                label="Saldo Pendiente al Cierre"
+                accentColor="#9a6309"
+                iconBg="rgba(193,125,17,0.10)"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 6 }}>

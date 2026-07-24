@@ -74,6 +74,9 @@ export interface CashRegisterSummary {
   sales_cash_mxn: number;
   sales_cash_usd: number;
   sales_transfer: number;
+  account_payments_cash_mxn: number;
+  account_payments_cash_usd: number;
+  account_payments_transfer: number;
   total_change_given: number;
   expected_cash_mxn: number;
   expected_cash_usd: number;
@@ -104,6 +107,9 @@ export interface Sale {
   user_id: number;
   user_name: string | null;
   total: number;
+  customer_id: number | null;
+  customer_name: string | null;
+  credit_amount: number;
   payment_method: PaymentMethod;
   payment_amount: number;
   payment_cash_mxn: number;
@@ -120,7 +126,42 @@ export interface SalesReport {
   total_sales: number;
   total_transactions: number;
   average_sale: number;
+  total_credit_sold: number;
+  total_account_collected: number;
+  outstanding_balance: number;
+  top_debtors: Customer[];
   sales: Sale[];
+}
+
+export interface Customer {
+  id: number;
+  name: string;
+  phone: string | null;
+  notes: string | null;
+  credit_limit: number;
+  active: boolean;
+  balance: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerAccountMovement {
+  id: number;
+  customer_id: number;
+  /** Current name joined from the customer relation; not a persisted snapshot. */
+  customer_name: string;
+  sale_id: number | null;
+  cash_register_session_id: number;
+  user_id: number;
+  user_name: string | null;
+  movement_type: 'sale_charge' | 'account_payment';
+  amount: number;
+  payment_cash_mxn: number;
+  payment_cash_usd: number;
+  payment_transfer: number;
+  exchange_rate: number | null;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface TopProduct {

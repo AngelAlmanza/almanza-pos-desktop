@@ -45,6 +45,10 @@ export class TicketPrinter {
   <div class="row"><span>Efectivo MXN:</span><span>$${summary.sales_cash_mxn.toFixed(2)}</span></div>
   <div class="row"><span>Efectivo USD:</span><span>$${summary.sales_cash_usd.toFixed(2)} USD</span></div>
   <div class="row"><span>Transferencias:</span><span>$${summary.sales_transfer.toFixed(2)}</span></div>
+  <div class="section-title">PAGOS A CUENTA</div>
+  <div class="row"><span>Efectivo MXN:</span><span>$${summary.account_payments_cash_mxn.toFixed(2)}</span></div>
+  <div class="row"><span>Efectivo USD:</span><span>$${summary.account_payments_cash_usd.toFixed(2)} USD</span></div>
+  <div class="row"><span>Transferencias:</span><span>$${summary.account_payments_transfer.toFixed(2)}</span></div>
   <div class="row"><span>Cambio entregado:</span><span>$${summary.total_change_given.toFixed(2)}</span></div>
   <div class="divider"></div>
   <div class="section-title">ESPERADO VS REAL</div>

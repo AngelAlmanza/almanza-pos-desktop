@@ -1,4 +1,5 @@
 use super::Database;
+use rusqlite::OptionalExtension;
 
 pub fn initialize(db: &Database) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
@@ -64,6 +65,8 @@ pub fn initialize(db: &Database) -> Result<(), String> {
             payment_transfer REAL NOT NULL DEFAULT 0,
             exchange_rate REAL,
             change_amount REAL NOT NULL DEFAULT 0,
+            customer_id INTEGER REFERENCES customers(id),
+            credit_amount REAL NOT NULL DEFAULT 0,
             status TEXT NOT NULL DEFAULT 'completed',
             created_at TEXT DEFAULT (datetime('now', 'localtime'))
         );
@@ -80,6 +83,33 @@ pub fn initialize(db: &Database) -> Result<(), String> {
             input_unit TEXT,
             unit_price REAL NOT NULL,
             subtotal REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS customers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            notes TEXT,
+            credit_limit REAL NOT NULL DEFAULT 0,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+
+        CREATE TABLE IF NOT EXISTS customer_account_movements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL REFERENCES customers(id),
+            sale_id INTEGER REFERENCES sales(id),
+            cash_register_session_id INTEGER NOT NULL REFERENCES cash_register_sessions(id),
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            movement_type TEXT NOT NULL CHECK(movement_type IN ('sale_charge', 'account_payment')),
+            amount REAL NOT NULL,
+            payment_cash_mxn REAL NOT NULL DEFAULT 0,
+            payment_cash_usd REAL NOT NULL DEFAULT 0,
+            payment_transfer REAL NOT NULL DEFAULT 0,
+            exchange_rate REAL,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
         );
 
         CREATE TABLE IF NOT EXISTS inventory_adjustments (
@@ -112,6 +142,9 @@ pub fn initialize(db: &Database) -> Result<(), String> {
         CREATE INDEX IF NOT EXISTS idx_sales_created ON sales(created_at);
         CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id);
         CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory_adjustments(product_id);
+        CREATE INDEX IF NOT EXISTS idx_customer_movements_customer ON customer_account_movements(customer_id);
+        CREATE INDEX IF NOT EXISTS idx_customer_movements_created ON customer_account_movements(created_at);
+        CREATE INDEX IF NOT EXISTS idx_customer_movements_session ON customer_account_movements(cash_register_session_id);
         ",
     )
     .map_err(|e| e.to_string())?;
@@ -135,6 +168,8 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         "ALTER TABLE sale_items ADD COLUMN input_mode TEXT CHECK(input_mode IN ('base', 'sub', 'amount'))",
         "ALTER TABLE sale_items ADD COLUMN input_value REAL",
         "ALTER TABLE sale_items ADD COLUMN input_unit TEXT",
+        "ALTER TABLE sales ADD COLUMN customer_id INTEGER REFERENCES customers(id)",
+        "ALTER TABLE sales ADD COLUMN credit_amount REAL NOT NULL DEFAULT 0",
     ];
 
     for sql in &migrations {
@@ -150,6 +185,98 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
     }
 
     migrate_products_is_bulk(conn)?;
+
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS customers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            notes TEXT,
+            credit_limit REAL NOT NULL DEFAULT 0,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS customer_account_movements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL REFERENCES customers(id),
+            sale_id INTEGER REFERENCES sales(id),
+            cash_register_session_id INTEGER NOT NULL REFERENCES cash_register_sessions(id),
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            movement_type TEXT NOT NULL CHECK(movement_type IN ('sale_charge', 'account_payment')),
+            amount REAL NOT NULL,
+            payment_cash_mxn REAL NOT NULL DEFAULT 0,
+            payment_cash_usd REAL NOT NULL DEFAULT 0,
+            payment_transfer REAL NOT NULL DEFAULT 0,
+            exchange_rate REAL,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id);
+        CREATE INDEX IF NOT EXISTS idx_customer_movements_customer ON customer_account_movements(customer_id);
+        CREATE INDEX IF NOT EXISTS idx_customer_movements_created ON customer_account_movements(created_at);
+        CREATE INDEX IF NOT EXISTS idx_customer_movements_session ON customer_account_movements(cash_register_session_id);",
+    )
+    .map_err(|e| format!("Customer migration error: {}", e))?;
+
+    migrate_customer_movement_session_required(conn)?;
+
+    Ok(())
+}
+
+fn migrate_customer_movement_session_required(
+    conn: &rusqlite::Connection,
+) -> Result<(), String> {
+    let required: Option<i64> = conn
+        .query_row(
+            "SELECT \"notnull\" FROM pragma_table_info('customer_account_movements') WHERE name = 'cash_register_session_id'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("Customer movement schema inspection error: {}", e))?;
+
+    if required == Some(1) {
+        return Ok(());
+    }
+
+    let null_sessions: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM customer_account_movements WHERE cash_register_session_id IS NULL",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Customer movement migration inspection error: {}", e))?;
+    if null_sessions > 0 {
+        return Err("No se puede endurecer la cuenta corriente: existen movimientos sin sesión de caja".to_string());
+    }
+
+    conn.execute_batch(
+        "ALTER TABLE customer_account_movements RENAME TO customer_account_movements_legacy;
+        CREATE TABLE customer_account_movements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL REFERENCES customers(id),
+            sale_id INTEGER REFERENCES sales(id),
+            cash_register_session_id INTEGER NOT NULL REFERENCES cash_register_sessions(id),
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            movement_type TEXT NOT NULL CHECK(movement_type IN ('sale_charge', 'account_payment')),
+            amount REAL NOT NULL,
+            payment_cash_mxn REAL NOT NULL DEFAULT 0,
+            payment_cash_usd REAL NOT NULL DEFAULT 0,
+            payment_transfer REAL NOT NULL DEFAULT 0,
+            exchange_rate REAL,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+        INSERT INTO customer_account_movements (id, customer_id, sale_id, cash_register_session_id, user_id, movement_type, amount, payment_cash_mxn, payment_cash_usd, payment_transfer, exchange_rate, notes, created_at)
+            SELECT id, customer_id, sale_id, cash_register_session_id, user_id, movement_type, amount, payment_cash_mxn, payment_cash_usd, payment_transfer, exchange_rate, notes, created_at
+            FROM customer_account_movements_legacy;
+        DROP TABLE customer_account_movements_legacy;
+        CREATE INDEX IF NOT EXISTS idx_customer_movements_customer ON customer_account_movements(customer_id);
+        CREATE INDEX IF NOT EXISTS idx_customer_movements_created ON customer_account_movements(created_at);
+        CREATE INDEX IF NOT EXISTS idx_customer_movements_session ON customer_account_movements(cash_register_session_id);",
+    )
+    .map_err(|e| format!("Customer movement migration error: {}", e))?;
 
     Ok(())
 }
@@ -179,7 +306,9 @@ fn migrate_products_is_bulk(conn: &rusqlite::Connection) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{migrate_products_is_bulk, run_migrations};
+    use super::{
+        migrate_customer_movement_session_required, migrate_products_is_bulk, run_migrations,
+    };
     use rusqlite::{params, Connection};
 
     #[test]
@@ -247,6 +376,44 @@ mod tests {
             )
             .unwrap();
         assert_eq!(metadata, (None, None, None, None));
+    }
+
+    #[test]
+    fn customer_movement_migration_makes_cash_session_required() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY);
+            CREATE TABLE customers (id INTEGER PRIMARY KEY);
+            CREATE TABLE sales (id INTEGER PRIMARY KEY);
+            CREATE TABLE cash_register_sessions (id INTEGER PRIMARY KEY);
+            CREATE TABLE customer_account_movements (
+                id INTEGER PRIMARY KEY,
+                customer_id INTEGER NOT NULL,
+                sale_id INTEGER,
+                cash_register_session_id INTEGER,
+                user_id INTEGER NOT NULL,
+                movement_type TEXT NOT NULL,
+                amount REAL NOT NULL,
+                payment_cash_mxn REAL NOT NULL DEFAULT 0,
+                payment_cash_usd REAL NOT NULL DEFAULT 0,
+                payment_transfer REAL NOT NULL DEFAULT 0,
+                exchange_rate REAL,
+                notes TEXT,
+                created_at TEXT
+            );",
+        )
+        .unwrap();
+
+        migrate_customer_movement_session_required(&conn).unwrap();
+
+        let required: i64 = conn
+            .query_row(
+                "SELECT \"notnull\" FROM pragma_table_info('customer_account_movements') WHERE name = 'cash_register_session_id'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(required, 1);
     }
 }
 
@@ -367,6 +534,14 @@ fn seed_default_settings(conn: &rusqlite::Connection) -> Result<(), String> {
             "Encoding",
             "printer",
             110,
+        ),
+        (
+            "default_customer_credit_limit",
+            "0",
+            "number",
+            "Límite de crédito predeterminado",
+            "fiados",
+            10,
         ),
     ];
 

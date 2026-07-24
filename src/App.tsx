@@ -8,6 +8,7 @@ import { PosProvider } from './context/PosProvider';
 import { AdminGuard, AuthGuard, GuestGuard } from './guards/AuthGuard';
 import { CashRegisterPage } from './pages/CashRegisterPage';
 import { CategoriesPage } from './pages/CategoriesPage';
+import { CustomersPage } from './pages/CustomersPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { POSPage } from './pages/POSPage';
@@ -42,6 +43,7 @@ function App() {
                   </Route>
                   <Route path="/sales" element={<SalesPage />} />
                   <Route path="/cash-register" element={<CashRegisterPage />} />
+                  <Route path="/customers" element={<CustomersPage />} />
 
                   {/* Admin-only routes */}
                   <Route element={<AdminGuard />}>

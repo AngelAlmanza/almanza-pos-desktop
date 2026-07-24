@@ -2,6 +2,7 @@ import {
   AccountBalance,
   Assessment,
   Category,
+  PersonSearch,
   Inventory2,
   Label,
   Logout,
@@ -56,6 +57,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Punto de Venta", path: "/pos", icon: <PointOfSale /> },
   { label: "Ventas", path: "/sales", icon: <ShoppingCart /> },
+  { label: "Clientes", path: "/customers", icon: <PersonSearch /> },
   {
     label: "Productos",
     path: "/products",

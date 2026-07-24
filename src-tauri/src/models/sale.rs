@@ -94,6 +94,9 @@ pub struct Sale {
     pub user_id: i64,
     pub user_name: Option<String>,
     pub total: f64,
+    pub customer_id: Option<i64>,
+    pub customer_name: Option<String>,
+    pub credit_amount: f64,
     pub payment_method: String,
     pub payment_amount: f64,
     pub payment_cash_mxn: f64,
@@ -128,6 +131,7 @@ pub struct CreateSaleRequest {
     pub payment_cash_mxn: f64,
     pub payment_cash_usd: f64,
     pub payment_transfer: f64,
+    pub customer_id: Option<i64>,
     pub items: Vec<CreateSaleItemRequest>,
 }
 
@@ -145,6 +149,10 @@ pub struct SalesReport {
     pub total_sales: f64,
     pub total_transactions: i64,
     pub average_sale: f64,
+    pub total_credit_sold: f64,
+    pub total_account_collected: f64,
+    pub outstanding_balance: f64,
+    pub top_debtors: Vec<crate::models::customer::Customer>,
     pub sales: Vec<Sale>,
 }
 

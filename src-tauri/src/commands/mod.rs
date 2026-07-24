@@ -1,6 +1,7 @@
 pub mod auth_commands;
 pub mod cash_register_commands;
 pub mod category_commands;
+pub mod customer_commands;
 pub mod inventory_commands;
 pub mod product_commands;
 pub mod printer_commands;

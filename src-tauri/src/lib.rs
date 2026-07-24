@@ -9,6 +9,7 @@ mod utils;
 use commands::auth_commands::*;
 use commands::cash_register_commands::*;
 use commands::category_commands::*;
+use commands::customer_commands::*;
 use commands::inventory_commands::*;
 use commands::product_commands::*;
 use commands::printer_commands::*;
@@ -73,6 +74,14 @@ pub fn run() {
             open_cash_register,
             close_cash_register,
             get_cash_register_summary,
+            // Customers / accounts receivable
+            get_customers,
+            get_active_customers,
+            get_customer,
+            create_customer,
+            update_customer,
+            get_customer_movements,
+            register_customer_payment,
             // Sales
             create_sale,
             get_sale,

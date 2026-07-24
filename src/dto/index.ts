@@ -89,7 +89,35 @@ export interface CreateSaleDTO {
   payment_cash_mxn: number;
   payment_cash_usd: number;
   payment_transfer: number;
+  customer_id?: number;
   items: CreateSaleItemDTO[];
+}
+
+// Customers / accounts receivable DTOs
+export interface CreateCustomerDTO {
+  name: string;
+  phone?: string;
+  notes?: string;
+  credit_limit?: number;
+}
+
+export interface UpdateCustomerDTO {
+  id: number;
+  name?: string;
+  phone?: string;
+  notes?: string;
+  credit_limit?: number;
+  active?: boolean;
+}
+
+export interface CreateCustomerPaymentDTO {
+  customer_id: number;
+  cash_register_session_id: number;
+  user_id: number;
+  payment_cash_mxn: number;
+  payment_cash_usd: number;
+  payment_transfer: number;
+  notes?: string;
 }
 
 export interface DateRangeDTO {

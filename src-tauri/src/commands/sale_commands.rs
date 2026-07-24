@@ -1,6 +1,6 @@
 use crate::constants::{DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE};
 use crate::db::repository::sale_repo::PreparedSaleItem;
-use crate::db::repository::{cash_register_repo, product_repo, sale_repo};
+use crate::db::repository::{cash_register_repo, customer_repo, product_repo, sale_repo};
 use crate::db::Database;
 use crate::error::{AppError, AppResult};
 use crate::models::cash_register::SessionStatus;
@@ -178,11 +178,11 @@ pub fn create_sale(db: State<Database>, request: CreateSaleRequest) -> AppResult
     let total_paid = money::total_paid_mxn(cash_mxn, cash_usd, transfer, exchange_rate);
     let change_amount = money::calc_change(total, total_paid);
 
-    if change_amount < 0.0 {
-        return Err(AppError::Validation(format!(
-            "Pago insuficiente. Total: ${:.2}, Recibido: ${:.2}",
-            total, total_paid
-        )));
+    let credit_amount = money::round2((total - total_paid).max(0.0));
+    if credit_amount > 0.0 && request.customer_id.is_none() {
+        return Err(AppError::Validation(
+            "Selecciona un cliente para registrar el adeudo".to_string(),
+        ));
     }
 
     let payment_method = money::derive_payment_method(cash_mxn, cash_usd, transfer);
@@ -198,7 +198,9 @@ pub fn create_sale(db: State<Database>, request: CreateSaleRequest) -> AppResult
         cash_usd,
         transfer,
         session.exchange_rate,
-        change_amount,
+        change_amount.max(0.0),
+        request.customer_id,
+        credit_amount,
         &items,
     )
 }
@@ -275,10 +277,16 @@ pub fn get_sales_report(db: State<Database>, request: DateRangeRequest) -> AppRe
         0.0
     };
 
+    let account_metrics =
+        customer_repo::report_metrics(&db, &request.start_date, &request.end_date)?;
     Ok(SalesReport {
         total_sales,
         total_transactions,
         average_sale,
+        total_credit_sold: account_metrics.total_credit_sold,
+        total_account_collected: account_metrics.total_account_collected,
+        outstanding_balance: account_metrics.outstanding_balance,
+        top_debtors: account_metrics.top_debtors,
         sales,
     })
 }
