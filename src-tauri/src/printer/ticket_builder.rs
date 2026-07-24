@@ -1,4 +1,5 @@
 use crate::models::sale::Sale;
+use crate::utils::money;
 
 use super::models::{TicketData, TicketItem};
 
@@ -9,7 +10,7 @@ pub fn build_sale_ticket(
     ticket_header: Option<&str>,
     ticket_footer: Option<&str>,
 ) -> TicketData {
-    let subtotal = sale.items.iter().map(|item| item.subtotal).sum::<f64>();
+    let subtotal = money::sum_money(sale.items.iter().map(|item| item.subtotal));
 
     let mut header_lines = Vec::new();
     if let Some(name) = business_name.filter(|value| !value.trim().is_empty()) {
@@ -53,7 +54,7 @@ pub fn build_sale_ticket(
             .collect(),
         total: sale.total,
         subtotal,
-        tax: (sale.total - subtotal).max(0.0),
+        tax: money::sub_money(sale.total, subtotal).max(0.0),
         barcode: None,
         qr_code: None,
         footer: Some(footer_lines.join("\n")),

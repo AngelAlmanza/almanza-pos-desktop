@@ -158,4 +158,15 @@ describe('computeMetrics', () => {
     const onlyCancelled = [makeSale({ id: 1, status: 'cancelled', payment_method: 'cash_mxn' })];
     expect(computeMetrics(onlyCancelled).byPaymentMethod).toEqual({});
   });
+
+  it('rounds report totals consistently when raw floats would drift', () => {
+    const driftingSales = [
+      makeSale({ id: 20, total: 0.1, payment_method: 'cash_mxn' }),
+      makeSale({ id: 21, total: 0.2, payment_method: 'cash_mxn' }),
+    ];
+
+    const metrics = computeMetrics(driftingSales);
+    expect(metrics.totalRevenue).toBe(0.3);
+    expect(metrics.byPaymentMethod.cash_mxn).toEqual({ count: 2, amount: 0.3 });
+  });
 });

@@ -1,10 +1,10 @@
 import { QrCodeScanner, Search } from "@mui/icons-material";
 import { Card, CardContent, Chip, Dialog, DialogContent, DialogTitle, IconButton, InputAdornment, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
-import { Decimal } from 'decimal.js';
 import { SubmitEvent, useCallback, useEffect, useRef, useState } from "react";
 import { usePos } from "../../context/PosProvider";
 import { Product } from "../../models";
 import { ProductService } from "../../services/ProductService";
+import { addQuantity, hasSufficientStock, roundQuantity } from "../../utils/money";
 import { isBulkUnit } from "../../utils/unitConversion";
 import { BulkQuantityDialog } from "./BulkQuantityDialog";
 
@@ -21,12 +21,16 @@ export const PosSearchBar = () => {
   const addToCart = (product: Product, quantity = 1) => {
     const existing = cart.find(item => item.product.id === product.id);
     const currentQty = existing?.quantity ?? 0;
-    if (new Decimal(currentQty).plus(quantity).gt(product.stock)) {
+    const normalizedQuantity = roundQuantity(quantity);
+    const requestedQty = addQuantity(currentQty, normalizedQuantity);
+
+    if (!hasSufficientStock(product.stock, requestedQty)) {
       setError(`Stock insuficiente. Disponible: ${product.stock}`);
       setTimeout(() => setError(''), 3000);
       return;
     }
-    dispatch({ type: 'ADD_ITEM', payload: { product, quantity } });
+
+    dispatch({ type: 'ADD_ITEM', payload: { product, quantity: normalizedQuantity } });
     setShowSearch(false);
     setSearchTerm('');
   };

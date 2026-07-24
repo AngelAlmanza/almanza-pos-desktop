@@ -1,6 +1,6 @@
-import { Decimal } from 'decimal.js';
-import { createContext, Dispatch, ReactNode, SetStateAction, useContext, useReducer, useState } from "react";
-import { CartItem, Product } from "../models";
+import { createContext, Dispatch, ReactNode, SetStateAction, useContext, useReducer, useState } from 'react';
+import { CartItem, Product } from '../models';
+import { addQuantity, hasSufficientStock, multiplyMoney, roundQuantity } from '../utils/money';
 
 export type PosAction =
   | { type: 'ADD_ITEM'; payload: { product: Product; quantity: number } }
@@ -18,33 +18,42 @@ interface PosContextType {
   dispatch: Dispatch<PosAction>;
 }
 
+function buildCartItem(product: Product, quantity: number): CartItem {
+  const normalizedQuantity = roundQuantity(quantity);
+
+  return {
+    product,
+    quantity: normalizedQuantity,
+    subtotal: multiplyMoney(product.price, normalizedQuantity),
+  };
+}
+
 export function posReducer(state: CartState, action: PosAction): CartState {
   switch (action.type) {
     case 'ADD_ITEM': {
       const { product, quantity } = action.payload;
       const existing = state.cart.find(i => i.product.id === product.id);
+      const normalizedQuantity = roundQuantity(quantity);
 
       if (existing) {
-        const newQty = new Decimal(existing.quantity).plus(quantity).toNumber();
-        if (new Decimal(newQty).gt(product.stock)) return state;
+        const newQty = addQuantity(existing.quantity, normalizedQuantity);
+        if (!hasSufficientStock(product.stock, newQty)) return state;
+
         return {
           ...state,
           cart: state.cart.map(i =>
             i.product.id === product.id
-              ? { ...i, quantity: newQty, subtotal: new Decimal(product.price).times(newQty).toNumber() }
+              ? buildCartItem(product, newQty)
               : i
           ),
         };
       }
 
-      if (new Decimal(quantity).gt(product.stock)) return state;
+      if (!hasSufficientStock(product.stock, normalizedQuantity)) return state;
+
       return {
         ...state,
-        cart: [...state.cart, {
-          product,
-          quantity,
-          subtotal: new Decimal(product.price).times(quantity).toNumber(),
-        }],
+        cart: [...state.cart, buildCartItem(product, normalizedQuantity)],
       };
     }
 
@@ -55,12 +64,8 @@ export function posReducer(state: CartState, action: PosAction): CartState {
         cart: state.cart
           .map(i => {
             if (i.product.id !== productId) return i;
-            const newQty = new Decimal(i.quantity).plus(delta).toNumber();
-            return {
-              ...i,
-              quantity: newQty,
-              subtotal: new Decimal(i.product.price).times(newQty).toNumber(),
-            };
+
+            return buildCartItem(i.product, addQuantity(i.quantity, delta));
           })
           .filter(i => i.quantity > 0),
       };
@@ -73,11 +78,7 @@ export function posReducer(state: CartState, action: PosAction): CartState {
         cart: state.cart
           .map(i =>
             i.product.id === productId
-              ? {
-                  ...i,
-                  quantity,
-                  subtotal: new Decimal(i.product.price).times(quantity).toNumber(),
-                }
+              ? buildCartItem(i.product, quantity)
               : i
           )
           .filter(i => i.quantity > 0),

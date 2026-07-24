@@ -12,9 +12,16 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import { Decimal } from 'decimal.js';
 import { useMemo, useState } from 'react';
 import { Product } from '../../models';
+import {
+  hasSufficientStock,
+  isPositiveQuantity,
+  multiplyMoney,
+  parseNumericInput,
+  roundQuantity,
+  subtractQuantity,
+} from '../../utils/money';
 import { amountToQuantity, getUnitConfig, subUnitToBase } from '../../utils/unitConversion';
 
 type InputMode = 'base' | 'sub' | 'amount';
@@ -40,17 +47,23 @@ export const BulkQuantityDialog = ({
   const config = product ? getUnitConfig(product.unit) : null;
 
   const quantityInBase = useMemo(() => {
-    if (!product || !inputValue || isNaN(Number(inputValue)) || Number(inputValue) <= 0) {
+    if (!product) {
       return null;
     }
+
+    const parsedInput = parseNumericInput(inputValue);
+    if (parsedInput === null || parsedInput <= 0) {
+      return null;
+    }
+
     try {
       switch (inputMode) {
         case 'base':
-          return new Decimal(inputValue);
+          return roundQuantity(parsedInput);
         case 'sub':
-          return subUnitToBase(inputValue, product.unit);
+          return roundQuantity(subUnitToBase(inputValue, product.unit).toNumber());
         case 'amount':
-          return amountToQuantity(inputValue, product.price);
+          return roundQuantity(amountToQuantity(inputValue, product.price).toNumber());
       }
     } catch {
       return null;
@@ -59,15 +72,15 @@ export const BulkQuantityDialog = ({
 
   const estimatedTotal = useMemo(() => {
     if (!quantityInBase || !product) return null;
-    return quantityInBase.times(product.price);
+    return multiplyMoney(product.price, quantityInBase);
   }, [quantityInBase, product]);
 
   const availableStock = product
-    ? new Decimal(product.stock).minus(existingCartQty)
-    : new Decimal(0);
+    ? subtractQuantity(product.stock, existingCartQty)
+    : 0;
 
-  const overStock = quantityInBase !== null && quantityInBase.gt(availableStock);
-  const isValid = quantityInBase !== null && quantityInBase.gt(0) && !overStock;
+  const overStock = quantityInBase !== null && !hasSufficientStock(availableStock, quantityInBase);
+  const isValid = quantityInBase !== null && isPositiveQuantity(quantityInBase) && !overStock;
 
   const handleModeChange = (_: unknown, newMode: InputMode | null) => {
     if (newMode) {
@@ -78,7 +91,7 @@ export const BulkQuantityDialog = ({
 
   const handleConfirm = () => {
     if (quantityInBase && isValid) {
-      onConfirm(quantityInBase.toNumber());
+      onConfirm(quantityInBase);
     }
   };
 
@@ -190,13 +203,13 @@ export const BulkQuantityDialog = ({
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2" color="text.secondary">Cantidad</Typography>
               <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                {quantityInBase.toDecimalPlaces(3).toNumber()} {config.baseUnitLabel}
+                {quantityInBase.toFixed(3)} {config.baseUnitLabel}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2" color="text.secondary">Total</Typography>
               <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                ${estimatedTotal.toDecimalPlaces(2).toNumber().toFixed(2)}
+                ${estimatedTotal.toFixed(2)}
               </Typography>
             </Box>
           </Box>
@@ -205,7 +218,7 @@ export const BulkQuantityDialog = ({
         {/* Over-stock warning */}
         {overStock && (
           <Alert severity="warning">
-            Stock insuficiente. Disponible: {availableStock.toNumber()} {config?.baseUnitLabel}
+            Stock insuficiente. Disponible: {availableStock.toFixed(3)} {config?.baseUnitLabel}
           </Alert>
         )}
       </DialogContent>

@@ -7,8 +7,8 @@ use rusqlite::params;
 
 const SELECT_QUERY: &str = "\
     SELECT cr.id, cr.user_id, u.full_name, cr.opening_amount, cr.closing_amount, \
-           cr.closing_cash_mxn, cr.closing_cash_usd, cr.exchange_rate, \
-           cr.status, cr.opened_at, cr.closed_at \
+            cr.closing_cash_mxn, cr.closing_cash_usd, cr.exchange_rate, \
+            cr.status, cr.opened_at, cr.closed_at \
     FROM cash_register_sessions cr JOIN users u ON cr.user_id = u.id";
 
 fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<CashRegisterSession> {
@@ -21,7 +21,7 @@ fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<CashRegisterSession> 
         closing_cash_mxn: row.get(5)?,
         closing_cash_usd: row.get(6)?,
         exchange_rate: row.get(7)?,
-        status: row.get(8)?,   // FromSql convierte TEXT → SessionStatus automáticamente
+        status: row.get(8)?, // FromSql convierte TEXT → SessionStatus automáticamente
         opened_at: row.get(9)?,
         closed_at: row.get(10)?,
         total_sales: None,
@@ -52,7 +52,11 @@ pub fn find_open_by_user(db: &Database, user_id: i64) -> AppResult<Option<CashRe
     let conn = db.conn.lock()?;
     let query = format!("{} WHERE cr.user_id = ?1 AND cr.status = ?2", SELECT_QUERY);
     let result = conn
-        .query_row(&query, params![user_id, SessionStatus::Open], row_to_session)
+        .query_row(
+            &query,
+            params![user_id, SessionStatus::Open],
+            row_to_session,
+        )
         .ok();
     Ok(result)
 }
@@ -68,26 +72,38 @@ pub fn find_by_date_range_paginated(
 
     let total: i64 = conn.query_row(
         "SELECT COUNT(*) FROM cash_register_sessions cr \
-         WHERE cr.opened_at >= ?1 \
-           AND ((cr.status = ?3 AND cr.closed_at <= ?2) \
-             OR (cr.status = ?4 AND cr.opened_at  <= ?2))",
-        params![start_date, end_date, SessionStatus::Closed, SessionStatus::Open],
+            WHERE cr.opened_at >= ?1 \
+            AND ((cr.status = ?3 AND cr.closed_at <= ?2) \
+            OR (cr.status = ?4 AND cr.opened_at  <= ?2))",
+        params![
+            start_date,
+            end_date,
+            SessionStatus::Closed,
+            SessionStatus::Open
+        ],
         |row| row.get(0),
     )?;
 
     let offset = (page - 1) * page_size;
     let query = format!(
         "{} WHERE cr.opened_at >= ?1 \
-           AND ((cr.status = ?3 AND cr.closed_at <= ?2) \
-             OR (cr.status = ?4 AND cr.opened_at  <= ?2)) \
-         ORDER BY cr.id DESC LIMIT ?5 OFFSET ?6",
+            AND ((cr.status = ?3 AND cr.closed_at <= ?2) \
+            OR (cr.status = ?4 AND cr.opened_at  <= ?2)) \
+            ORDER BY cr.id DESC LIMIT ?5 OFFSET ?6",
         SELECT_QUERY
     );
     let mut stmt = conn.prepare(&query)?;
 
     let sessions = stmt
         .query_map(
-            params![start_date, end_date, SessionStatus::Closed, SessionStatus::Open, page_size, offset],
+            params![
+                start_date,
+                end_date,
+                SessionStatus::Closed,
+                SessionStatus::Open,
+                page_size,
+                offset
+            ],
             row_to_session,
         )?
         .collect::<Result<Vec<_>, _>>()?;
@@ -119,7 +135,7 @@ pub fn open_session(
     let conn = db.conn.lock()?;
     conn.execute(
         "INSERT INTO cash_register_sessions (user_id, opening_amount, exchange_rate, status) \
-         VALUES (?1, ?2, ?3, ?4)",
+            VALUES (?1, ?2, ?3, ?4)",
         params![
             user_id,
             money::round2(opening_amount),
@@ -155,8 +171,8 @@ fn query_sales_breakdown(
             COALESCE(SUM(payment_cash_usd), 0), \
             COALESCE(SUM(payment_transfer), 0), \
             COALESCE(SUM(change_amount), 0) \
-         FROM sales \
-         WHERE cash_register_session_id = ?1 AND status = ?2",
+            FROM sales \
+            WHERE cash_register_session_id = ?1 AND status = ?2",
         params![session_id, SaleStatus::Completed],
         |row| {
             Ok(SessionSalesBreakdown {
@@ -187,8 +203,9 @@ fn build_summary(
     let actual_mxn = session.closing_cash_mxn.unwrap_or(0.0);
     let actual_usd = session.closing_cash_usd.unwrap_or(0.0);
 
-    let expected_mxn = money::round2(
-        session.opening_amount + breakdown.sales_cash_mxn - breakdown.total_change_given,
+    let expected_mxn = money::sub_money(
+        money::add_money(session.opening_amount, breakdown.sales_cash_mxn),
+        breakdown.total_change_given,
     );
     let expected_usd = breakdown.sales_cash_usd;
 
@@ -204,8 +221,8 @@ fn build_summary(
         expected_cash_usd: expected_usd,
         actual_cash_mxn: actual_mxn,
         actual_cash_usd: actual_usd,
-        difference_mxn: money::round2(actual_mxn - expected_mxn),
-        difference_usd: money::round2(actual_usd - expected_usd),
+        difference_mxn: money::sub_money(actual_mxn, expected_mxn),
+        difference_usd: money::sub_money(actual_usd, expected_usd),
     }
 }
 
@@ -217,15 +234,15 @@ pub fn close_session(
 ) -> AppResult<CashRegisterSummary> {
     let conn = db.conn.lock()?;
 
-    let closing_total = money::round2(closing_cash_mxn + closing_cash_usd);
+    let closing_total = money::add_money(closing_cash_mxn, closing_cash_usd);
     conn.execute(
         "UPDATE cash_register_sessions \
-         SET status = ?1, \
-             closing_amount = ?2, \
-             closing_cash_mxn = ?3, \
-             closing_cash_usd = ?4, \
-             closed_at = datetime('now', 'localtime') \
-         WHERE id = ?5 AND status = ?6",
+        SET status = ?1, \
+            closing_amount = ?2, \
+            closing_cash_mxn = ?3, \
+            closing_cash_usd = ?4, \
+            closed_at = datetime('now', 'localtime') \
+        WHERE id = ?5 AND status = ?6",
         params![
             SessionStatus::Closed,
             closing_total,

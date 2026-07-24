@@ -75,7 +75,7 @@ pub fn create_sale(db: State<Database>, request: CreateSaleRequest) -> AppResult
         }
 
         let subtotal = money::mul_money(product.price, quantity);
-        total = money::round2(total + subtotal);
+        total = money::add_money(total, subtotal);
         items.push((product.id, product.name.clone(), quantity, product.price, subtotal));
     }
 
@@ -167,10 +167,10 @@ pub fn get_sales_report(
 ) -> AppResult<SalesReport> {
     let sales = sale_repo::find_by_date_range(&db, &request.start_date, &request.end_date)?;
     let completed_sales: Vec<&Sale> = sales.iter().filter(|s| s.status == SaleStatus::Completed).collect();
-    let total_sales = money::round2(completed_sales.iter().map(|s| s.total).sum::<f64>());
+    let total_sales = money::sum_money(completed_sales.iter().map(|s| s.total));
     let total_transactions = completed_sales.len() as i64;
     let average_sale = if total_transactions > 0 {
-        money::round2(total_sales / total_transactions as f64)
+        money::div_money(total_sales, total_transactions as f64)
     } else {
         0.0
     };

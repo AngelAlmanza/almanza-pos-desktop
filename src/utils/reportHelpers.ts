@@ -1,5 +1,6 @@
 import type { Sale } from '../models';
 import type { PaymentMethod } from '../types';
+import { addMoney, divideMoney, roundMoney, sumMoney } from './money';
 
 export const MAX_REPORT_RANGE_DAYS = 365;
 
@@ -28,9 +29,11 @@ export function computeMetrics(sales: Sale[]): ReportMetrics {
   const completed = sales.filter((s) => s.status === 'completed');
   const cancelled = sales.filter((s) => s.status === 'cancelled');
 
-  const totalRevenue = completed.reduce((sum, s) => sum + s.total, 0);
-  const cancelledAmount = cancelled.reduce((sum, s) => sum + s.total, 0);
-  const averageSale = completed.length > 0 ? totalRevenue / completed.length : 0;
+  const totalRevenue = sumMoney(completed.map(s => s.total));
+  const cancelledAmount = sumMoney(cancelled.map(s => s.total));
+  const averageSale = completed.length > 0
+    ? divideMoney(totalRevenue, completed.length)
+    : 0;
 
   const byPaymentMethod: Partial<Record<PaymentMethod, { count: number; amount: number }>> = {};
   for (const sale of completed) {
@@ -39,7 +42,7 @@ export function computeMetrics(sales: Sale[]): ReportMetrics {
       byPaymentMethod[m] = { count: 0, amount: 0 };
     }
     byPaymentMethod[m].count++;
-    byPaymentMethod[m].amount += sale.total;
+    byPaymentMethod[m].amount = roundMoney(addMoney(byPaymentMethod[m].amount, sale.total));
   }
 
   return {

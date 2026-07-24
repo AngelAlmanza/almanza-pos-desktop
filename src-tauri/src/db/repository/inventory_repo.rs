@@ -6,8 +6,8 @@ use rusqlite::params;
 
 const SELECT_QUERY: &str = "\
     SELECT ia.id, ia.product_id, p.name, ia.user_id, u.full_name, \
-           ia.adjustment_type, ia.quantity, ia.previous_stock, ia.new_stock, \
-           ia.reason, ia.created_at \
+            ia.adjustment_type, ia.quantity, ia.previous_stock, ia.new_stock, \
+            ia.reason, ia.created_at \
     FROM inventory_adjustments ia \
     JOIN products p ON ia.product_id = p.id \
     JOIN users u ON ia.user_id = u.id";
@@ -51,7 +51,7 @@ pub fn find_by_date_range_paginated(
 
     let total: i64 = conn.query_row(
         "SELECT COUNT(*) FROM inventory_adjustments ia \
-         WHERE ia.created_at >= ?1 AND ia.created_at <= ?2",
+            WHERE ia.created_at >= ?1 AND ia.created_at <= ?2",
         params![start_date, end_date],
         |row| row.get(0),
     )?;
@@ -64,7 +64,10 @@ pub fn find_by_date_range_paginated(
     let mut stmt = conn.prepare(&query)?;
 
     let adjustments = stmt
-        .query_map(params![start_date, end_date, page_size, offset], row_to_adjustment)?
+        .query_map(
+            params![start_date, end_date, page_size, offset],
+            row_to_adjustment,
+        )?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok((adjustments, total))
@@ -72,7 +75,10 @@ pub fn find_by_date_range_paginated(
 
 pub fn find_by_product(db: &Database, product_id: i64) -> AppResult<Vec<InventoryAdjustment>> {
     let conn = db.conn.lock()?;
-    let query = format!("{} WHERE ia.product_id = ?1 ORDER BY ia.id DESC", SELECT_QUERY);
+    let query = format!(
+        "{} WHERE ia.product_id = ?1 ORDER BY ia.id DESC",
+        SELECT_QUERY
+    );
     let mut stmt = conn.prepare(&query)?;
 
     let adjustments = stmt
@@ -104,22 +110,22 @@ pub fn create(
 
     let quantity = money::round3(quantity);
     let new_stock = if adjustment_type.is_positive() {
-        money::round3(current_stock + quantity)
+        money::add_stock(current_stock, quantity)
     } else {
         if current_stock < quantity {
             return Err(AppError::Validation(
                 "Stock insuficiente para el ajuste negativo".to_string(),
             ));
         }
-        money::round3(current_stock - quantity)
+        money::sub_stock(current_stock, quantity)
     };
 
     let tx = conn.transaction()?;
 
     tx.execute(
         "INSERT INTO inventory_adjustments \
-             (product_id, user_id, adjustment_type, quantity, previous_stock, new_stock, reason) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                (product_id, user_id, adjustment_type, quantity, previous_stock, new_stock, reason) \
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![product_id, user_id, adjustment_type, quantity, current_stock, new_stock, reason],
     )?;
 

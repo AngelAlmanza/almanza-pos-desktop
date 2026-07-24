@@ -73,6 +73,17 @@ describe('posReducer – ADD_ITEM', () => {
     expect(state.cart[0].subtotal).toBe(134.25);
   });
 
+  it('rounds weighted quantities to 3 decimals before calculating subtotal', () => {
+    const product = makeProduct({ price: 80, unit: 'kg', stock: 10 });
+    const state = posReducer(emptyState, {
+      type: 'ADD_ITEM',
+      payload: { product, quantity: 0.3125 },
+    });
+
+    expect(state.cart[0].quantity).toBe(0.313);
+    expect(state.cart[0].subtotal).toBe(25.04);
+  });
+
   it('accumulates quantity when the same product is added again', () => {
     const product = makeProduct({ price: 9.99, stock: 20 });
     let state = posReducer(emptyState, {

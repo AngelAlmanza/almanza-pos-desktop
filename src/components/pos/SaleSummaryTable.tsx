@@ -16,8 +16,8 @@ import {
   TableRow,
   Typography
 } from "@mui/material";
-import { Decimal } from 'decimal.js';
 import { usePos } from '../../context/PosProvider';
+import { addQuantity, hasSufficientStock, isPositiveQuantity, parseQuantityInput } from '../../utils/money';
 import { isBulkUnit } from '../../utils/unitConversion';
 
 export const SaleSummaryTable = () => {
@@ -25,36 +25,43 @@ export const SaleSummaryTable = () => {
 
   const updateQuantity = (index: number, delta: number) => {
     const item = cart[index];
-    const newQty = new Decimal(item.quantity).plus(delta);
-    if (newQty.lte(0)) {
+    const newQty = addQuantity(item.quantity, delta);
+
+    if (!isPositiveQuantity(newQty)) {
       dispatch({ type: 'REMOVE_ITEM', payload: { productId: item.product.id } });
       return;
     }
-    if (newQty.gt(item.product.stock)) {
+
+    if (!hasSufficientStock(item.product.stock, newQty)) {
       setError(`Stock insuficiente. Disponible: ${item.product.stock}`);
       setTimeout(() => setError(''), 3000);
       return;
     }
+
     dispatch({ type: 'INCREMENT', payload: { productId: item.product.id, delta } });
   };
 
   const handleQuantityChange = (index: number, rawValue: string) => {
     const item = cart[index];
-    try {
-      const qty = new Decimal(rawValue);
-      if (qty.lte(0)) {
-        dispatch({ type: 'REMOVE_ITEM', payload: { productId: item.product.id } });
-        return;
-      }
-      if (qty.gt(item.product.stock)) {
-        setError(`Stock insuficiente. Disponible: ${item.product.stock}`);
-        setTimeout(() => setError(''), 3000);
-        return;
-      }
-      dispatch({ type: 'SET_QUANTITY', payload: { productId: item.product.id, quantity: qty.toNumber() } });
-    } catch {
-      // ignore invalid/incomplete input while the user is typing
+    const qty = parseQuantityInput(rawValue);
+
+    if (qty === null) {
+      // Ignore invalid/incomplete input while the user is typing.
+      return;
     }
+
+    if (!isPositiveQuantity(qty)) {
+      dispatch({ type: 'REMOVE_ITEM', payload: { productId: item.product.id } });
+      return;
+    }
+
+    if (!hasSufficientStock(item.product.stock, qty)) {
+      setError(`Stock insuficiente. Disponible: ${item.product.stock}`);
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    dispatch({ type: 'SET_QUANTITY', payload: { productId: item.product.id, quantity: qty } });
   };
 
   const removeFromCart = (index: number) => {
