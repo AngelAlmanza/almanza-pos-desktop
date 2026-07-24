@@ -5,7 +5,7 @@ import { usePos } from "../../context/PosProvider";
 import { Product } from "../../models";
 import { ProductService } from "../../services/ProductService";
 import { addQuantity, hasSufficientStock, roundQuantity } from "../../utils/money";
-import { isBulkUnit } from "../../utils/unitConversion";
+import { supportsBulkQuantityInput } from "../../utils/unitConversion";
 import { BulkQuantityDialog } from "./BulkQuantityDialog";
 
 export const PosSearchBar = () => {
@@ -36,7 +36,7 @@ export const PosSearchBar = () => {
   };
 
   const handleProductSelected = (product: Product) => {
-    if (isBulkUnit(product.unit)) {
+    if (supportsBulkQuantityInput(product.unit)) {
       setPendingProduct(product);
     } else {
       addToCart(product);

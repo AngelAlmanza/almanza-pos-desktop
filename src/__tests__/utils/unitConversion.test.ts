@@ -1,8 +1,98 @@
 import { describe, it, expect } from 'vitest';
-import { isBulkUnit, getUnitConfig, subUnitToBase, amountToQuantity } from '../../utils/unitConversion';
+import {
+  amountToQuantity,
+  convert,
+  fromBase,
+  getCompatibleUnits,
+  getUnitConfig,
+  getUnitMeta,
+  isBulkUnit,
+  isCompatible,
+  subUnitToBase,
+  supportsBulkQuantityInput,
+  toBase,
+  UnitConversionError,
+} from '../../utils/unitConversion';
 import type { ProductUnit } from '../../types';
 
-describe('isBulkUnit', () => {
+describe('unit catalog', () => {
+  it('returns metadata for a known unit', () => {
+    expect(getUnitMeta('g')).toEqual({
+      code: 'g',
+      family: 'mass',
+      baseUnit: 'kg',
+      factorToBase: '0.001',
+      displayLabel: 'g',
+    });
+  });
+
+  it('throws a clear error for unknown units', () => {
+    expect(() => getUnitMeta('ton')).toThrow(UnitConversionError);
+    expect(() => getUnitMeta('ton')).toThrow('Unknown unit: ton.');
+  });
+});
+
+describe('isCompatible', () => {
+  it.each<[string, string, boolean]>([
+    ['kg', 'g', true],
+    ['litro', 'ml', true],
+    ['metro', 'cm', true],
+    ['kg', 'ml', false],
+    ['pieza', 'paquete', false],
+    ['pieza', 'pieza', true],
+    ['kg', 'ton', false],
+  ])('isCompatible(%s, %s) -> %s', (from, to, expected) => {
+    expect(isCompatible(from, to)).toBe(expected);
+  });
+});
+
+describe('convert', () => {
+  it.each<[number, string, string, number]>([
+    [1, 'kg', 'g', 1000],
+    [500, 'g', 'kg', 0.5],
+    [1, 'litro', 'ml', 1000],
+    [250, 'ml', 'litro', 0.25],
+    [1, 'metro', 'cm', 100],
+    [50, 'cm', 'metro', 0.5],
+  ])('converts %s %s to %s', (value, from, to, expected) => {
+    expect(convert(value, from, to).toNumber()).toBe(expected);
+  });
+
+  it('keeps precision for small mass values', () => {
+    expect(convert(1, 'g', 'kg').toString()).toBe('0.001');
+  });
+
+  it('throws for incompatible units instead of returning the original value', () => {
+    expect(() => convert(3, 'kg', 'ml')).toThrow(UnitConversionError);
+    expect(() => convert(3, 'kg', 'ml')).toThrow('Cannot convert from kg to ml: incompatible units.');
+  });
+});
+
+describe('base conversions', () => {
+  it('converts to each family base unit', () => {
+    expect(toBase(1250, 'g').toNumber()).toBe(1.25);
+    expect(toBase(1250, 'ml').toNumber()).toBe(1.25);
+    expect(toBase(125, 'cm').toNumber()).toBe(1.25);
+  });
+
+  it('converts from each family base unit', () => {
+    expect(fromBase(1.25, 'g').toNumber()).toBe(1250);
+    expect(fromBase(1.25, 'ml').toNumber()).toBe(1250);
+    expect(fromBase(1.25, 'cm').toNumber()).toBe(125);
+  });
+});
+
+describe('getCompatibleUnits', () => {
+  it('returns the central compatible set for a measured unit', () => {
+    expect(getCompatibleUnits('kg').map((unit) => unit.code)).toEqual(['kg', 'g']);
+  });
+
+  it('keeps discrete units isolated because package sizes are product-specific', () => {
+    expect(getCompatibleUnits('paquete').map((unit) => unit.code)).toEqual(['paquete']);
+  });
+});
+
+describe('bulk product helpers', () => {
   it.each<[ProductUnit, boolean]>([
     ['kg', true],
     ['litro', true],
@@ -11,73 +101,57 @@ describe('isBulkUnit', () => {
     ['paquete', false],
     ['caja', false],
     ['otro', false],
-  ])('isBulkUnit(%s) → %s', (unit, expected) => {
+  ])('supportsBulkQuantityInput(%s) -> %s', (unit, expected) => {
+    expect(supportsBulkQuantityInput(unit)).toBe(expected);
     expect(isBulkUnit(unit)).toBe(expected);
   });
-});
 
-describe('getUnitConfig', () => {
-  it('returns config for kg', () => {
-    const config = getUnitConfig('kg');
-    expect(config).toEqual({ subUnitLabel: 'g', baseUnitLabel: 'kg', factor: 1000 });
+  it('returns input config from catalog metadata', () => {
+    expect(getUnitConfig('kg')).toEqual({
+      subUnitCode: 'g',
+      subUnitLabel: 'g',
+      baseUnitCode: 'kg',
+      baseUnitLabel: 'kg',
+      factor: 1000,
+    });
   });
 
-  it('returns config for litro', () => {
-    const config = getUnitConfig('litro');
-    expect(config).toEqual({ subUnitLabel: 'ml', baseUnitLabel: 'litro', factor: 1000 });
-  });
-
-  it('returns config for metro', () => {
-    const config = getUnitConfig('metro');
-    expect(config).toEqual({ subUnitLabel: 'cm', baseUnitLabel: 'metro', factor: 100 });
-  });
-
-  it('returns null for non-bulk units', () => {
+  it('returns null when a product unit has no safe subunit conversion', () => {
     expect(getUnitConfig('pieza')).toBeNull();
   });
-});
 
-describe('subUnitToBase', () => {
-  it('converts 500g to 0.5kg', () => {
-    expect(subUnitToBase(500, 'kg').toNumber()).toBe(0.5);
+  it.each<[number | string, ProductUnit, number]>([
+    [500, 'kg', 0.5],
+    [250, 'litro', 0.25],
+    [50, 'metro', 0.5],
+    ['350', 'kg', 0.35],
+  ])('converts subunit input to the product base unit', (value, unit, expected) => {
+    expect(subUnitToBase(value, unit).toNumber()).toBe(expected);
   });
 
-  it('converts 250ml to 0.25 litro', () => {
-    expect(subUnitToBase(250, 'litro').toNumber()).toBe(0.25);
-  });
-
-  it('converts 50cm to 0.5 metro', () => {
-    expect(subUnitToBase(50, 'metro').toNumber()).toBe(0.5);
-  });
-
-  it('accepts string input', () => {
-    expect(subUnitToBase('350', 'kg').toNumber()).toBe(0.35);
-  });
-
-  it('returns value as-is for non-bulk units', () => {
-    expect(subUnitToBase(3, 'pieza').toNumber()).toBe(3);
-  });
-
-  it('avoids floating-point drift', () => {
-    // 1g = 0.001kg — should not produce 0.0010000000000000000208...
-    expect(subUnitToBase(1, 'kg').toNumber()).toBe(0.001);
+  it('throws when subunit conversion is not available', () => {
+    expect(() => subUnitToBase(3, 'pieza')).toThrow('Unit pieza does not have a compatible subunit.');
   });
 });
 
 describe('amountToQuantity', () => {
-  it('$50 at $100/kg → 0.5kg', () => {
+  it('$50 at $100/kg -> 0.5kg', () => {
     expect(amountToQuantity(50, 100).toNumber()).toBe(0.5);
   });
 
-  it('$25 at $80/kg → 0.3125kg', () => {
+  it('$25 at $80/kg -> 0.3125kg', () => {
     expect(amountToQuantity(25, 80).toNumber()).toBe(0.3125);
-  });
-
-  it('returns 0 when price is 0', () => {
-    expect(amountToQuantity(50, 0).toNumber()).toBe(0);
   });
 
   it('accepts string inputs', () => {
     expect(amountToQuantity('100', '200').toNumber()).toBe(0.5);
+  });
+
+  it('returns 0 for a zero amount with a positive price', () => {
+    expect(amountToQuantity(0, 100).toNumber()).toBe(0);
+  });
+
+  it('throws when price cannot produce a safe quantity', () => {
+    expect(() => amountToQuantity(50, 0)).toThrow('Price per unit must be greater than zero.');
   });
 });

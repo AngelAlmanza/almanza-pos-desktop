@@ -22,7 +22,12 @@ import {
   roundQuantity,
   subtractQuantity,
 } from '../../utils/money';
-import { amountToQuantity, getUnitConfig, subUnitToBase } from '../../utils/unitConversion';
+import {
+  amountToQuantity,
+  getUnitConfig,
+  subUnitToBase,
+  UnitConversionError,
+} from '../../utils/unitConversion';
 
 type InputMode = 'base' | 'sub' | 'amount';
 
@@ -32,6 +37,11 @@ interface BulkQuantityDialogProps {
   existingCartQty: number;
   onConfirm: (qty: number) => void;
   onCancel: () => void;
+}
+
+interface QuantityCalculationResult {
+  quantity: number | null;
+  errorMessage: string | null;
 }
 
 export const BulkQuantityDialog = ({
@@ -46,29 +56,41 @@ export const BulkQuantityDialog = ({
 
   const config = product ? getUnitConfig(product.unit) : null;
 
-  const quantityInBase = useMemo(() => {
+  const quantityCalculation = useMemo<QuantityCalculationResult>(() => {
     if (!product) {
-      return null;
+      return { quantity: null, errorMessage: null };
     }
 
     const parsedInput = parseNumericInput(inputValue);
     if (parsedInput === null || parsedInput <= 0) {
-      return null;
+      return { quantity: null, errorMessage: null };
     }
 
     try {
       switch (inputMode) {
         case 'base':
-          return roundQuantity(parsedInput);
+          return { quantity: roundQuantity(parsedInput), errorMessage: null };
         case 'sub':
-          return roundQuantity(subUnitToBase(inputValue, product.unit).toNumber());
+          return {
+            quantity: roundQuantity(subUnitToBase(inputValue, product.unit).toNumber()),
+            errorMessage: null,
+          };
         case 'amount':
-          return roundQuantity(amountToQuantity(inputValue, product.price).toNumber());
+          return {
+            quantity: roundQuantity(amountToQuantity(inputValue, product.price).toNumber()),
+            errorMessage: null,
+          };
       }
-    } catch {
-      return null;
+    } catch (error) {
+      return {
+        quantity: null,
+        errorMessage: error instanceof UnitConversionError ? error.message : null,
+      };
     }
   }, [inputMode, inputValue, product]);
+
+  const quantityInBase = quantityCalculation.quantity;
+  const conversionError = quantityCalculation.errorMessage;
 
   const estimatedTotal = useMemo(() => {
     if (!quantityInBase || !product) return null;
@@ -187,6 +209,12 @@ export const BulkQuantityDialog = ({
             htmlInput: { min: 0, step: 'any' },
           }}
         />
+
+        {conversionError && (
+          <Alert severity="error">
+            {conversionError}
+          </Alert>
+        )}
 
         {/* Preview */}
         {quantityInBase && estimatedTotal && config && (
