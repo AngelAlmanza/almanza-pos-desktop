@@ -1,0 +1,38 @@
+import { invoke } from '@tauri-apps/api/core';
+import type { CreateSaleDTO, Sale, SalesReport, TopProduct } from '@modules/sales/types';
+import type { DateRangeDTO } from '@modules/shared/types/dateRange';
+import type { PaginatedResult } from '@modules/shared/types/pagination';
+
+export class SaleService {
+  static async create(dto: CreateSaleDTO): Promise<Sale> {
+    return invoke<Sale>('create_sale', { request: dto });
+  }
+
+  static async getById(id: number): Promise<Sale> {
+    return invoke<Sale>('get_sale', { id });
+  }
+
+  static async getAll(): Promise<Sale[]> {
+    return invoke<Sale[]>('get_sales');
+  }
+
+  static async getBySession(sessionId: number, page = 1, pageSize = 50): Promise<PaginatedResult<Sale>> {
+    return invoke<PaginatedResult<Sale>>('get_sales_by_session', { sessionId, page, pageSize });
+  }
+
+  static async getByDateRange(dto: DateRangeDTO, page = 1, pageSize = 50): Promise<PaginatedResult<Sale>> {
+    return invoke<PaginatedResult<Sale>>('get_sales_by_date_range', { request: dto, page, pageSize });
+  }
+
+  static async getReport(dto: DateRangeDTO): Promise<SalesReport> {
+    return invoke<SalesReport>('get_sales_report', { request: dto });
+  }
+
+  static async getTopProducts(startDate: string, endDate: string, limit?: number): Promise<TopProduct[]> {
+    return invoke<TopProduct[]>('get_top_products', { startDate, endDate, limit });
+  }
+
+  static async cancel(saleId: number): Promise<void> {
+    return invoke<void>('cancel_sale', { saleId });
+  }
+}
