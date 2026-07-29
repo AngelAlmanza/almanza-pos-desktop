@@ -1,5 +1,5 @@
 use crate::models::sale::Sale;
-use crate::utils::money;
+use crate::shared::money;
 
 use super::models::{TicketData, TicketItem};
 

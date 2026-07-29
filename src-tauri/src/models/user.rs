@@ -40,9 +40,9 @@ impl rusqlite::types::FromSql for UserRole {
 
 impl rusqlite::types::ToSql for UserRole {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        Ok(rusqlite::types::ToSqlOutput::Owned(rusqlite::types::Value::Text(
-            self.as_str().to_string(),
-        )))
+        Ok(rusqlite::types::ToSqlOutput::Owned(
+            rusqlite::types::Value::Text(self.as_str().to_string()),
+        ))
     }
 }
 

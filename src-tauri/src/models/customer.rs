@@ -25,9 +25,7 @@ impl CustomerMovementType {
 }
 
 impl rusqlite::types::FromSql for CustomerMovementType {
-    fn column_result(
-        value: rusqlite::types::ValueRef<'_>,
-    ) -> rusqlite::types::FromSqlResult<Self> {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         let value = String::column_result(value)?;
         Self::parse(&value).ok_or_else(|| {
             rusqlite::types::FromSqlError::Other(
@@ -105,12 +103,4 @@ pub struct CreateCustomerPaymentRequest {
     pub payment_cash_usd: f64,
     pub payment_transfer: f64,
     pub notes: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct CustomerReportMetrics {
-    pub total_credit_sold: f64,
-    pub total_account_collected: f64,
-    pub outstanding_balance: f64,
-    pub top_debtors: Vec<Customer>,
 }

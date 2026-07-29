@@ -48,9 +48,9 @@ impl rusqlite::types::FromSql for AdjustmentType {
 
 impl rusqlite::types::ToSql for AdjustmentType {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        Ok(rusqlite::types::ToSqlOutput::Owned(rusqlite::types::Value::Text(
-            self.as_str().to_string(),
-        )))
+        Ok(rusqlite::types::ToSqlOutput::Owned(
+            rusqlite::types::Value::Text(self.as_str().to_string()),
+        ))
     }
 }
 

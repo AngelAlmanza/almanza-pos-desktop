@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::error::{AppError, AppResult};
+use crate::shared::error::{AppError, AppResult};
 
 use super::models::{
     ConnectionType, CutType, PaperSize, PrinterConfig, PrinterSettings, PrinterStandard,
