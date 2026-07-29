@@ -1,0 +1,27 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Almanza POS: caja de cobro y ticket para abarrotes -->
+  <rect width="1024" height="1024" fill="#12172A"/>
+
+  <!-- Cuerpo trasero de la caja -->
+  <path d="M218 657L245 442C249 405 280 378 318 378H706C744 378 775 405 779 442L806 657H218Z" fill="#0D6B5F"/>
+
+  <!-- Ticket -->
+  <path d="M370 208L398 180L426 208L454 180L482 208L510 180L538 208L566 180L594 208L622 180L650 208V575H370V208Z" fill="#C17D11"/>
+  <rect x="418" y="318" width="184" height="28" rx="14" fill="#12172A"/>
+  <rect x="418" y="382" width="140" height="28" rx="14" fill="#12172A"/>
+  <rect x="418" y="446" width="170" height="28" rx="14" fill="#12172A"/>
+  <rect x="418" y="510" width="112" height="28" rx="14" fill="#12172A"/>
+
+  <!-- Ranura del ticket -->
+  <rect x="310" y="544" width="404" height="54" rx="27" fill="#12172A"/>
+
+  <!-- Frente de la caja -->
+  <rect x="128" y="650" width="768" height="196" rx="58" fill="#0D6B5F"/>
+  <rect x="180" y="846" width="92" height="28" rx="14" fill="#0D6B5F"/>
+  <rect x="752" y="846" width="92" height="28" rx="14" fill="#0D6B5F"/>
+
+  <!-- Controles mínimos, legibles a escala pequeña -->
+  <rect x="370" y="730" width="124" height="34" rx="17" fill="#C17D11"/>
+  <circle cx="548" cy="747" r="22" fill="#C17D11"/>
+  <circle cx="618" cy="747" r="22" fill="#C17D11"/>
+</svg>
