@@ -1,7 +1,7 @@
-import { Check, Close, Delete, Edit } from "@mui/icons-material";
-import { Box, Chip, CircularProgress, IconButton, TextField, Tooltip, Typography } from "@mui/material";
 import type { Setting } from '@modules/settings/types';
-import { ImageField } from "./ImageField";
+import { Check, Close, Delete, Edit } from '@mui/icons-material';
+import { Box, Button, Chip, CircularProgress, IconButton, TextField, Tooltip, Typography } from '@mui/material';
+import { ImageField } from './ImageField';
 
 interface SettingRowProps {
   setting: Setting;
@@ -12,14 +12,14 @@ interface SettingRowProps {
   imagePreview: string | null;
   isDev: boolean;
   onStartEdit: () => void;
-  onChangeDraft: (v: string) => void;
+  onChangeDraft: (value: string) => void;
   onSave: () => void;
   onCancel: () => void;
   onImageUpload: () => void;
   onDelete: () => void;
 }
 
-export const SettingRow = ({
+export function SettingRow({
   setting,
   isLast,
   isEditing,
@@ -33,35 +33,31 @@ export const SettingRow = ({
   onCancel,
   onImageUpload,
   onDelete,
-}: SettingRowProps) => {
+}: SettingRowProps) {
   const isImageType = setting.value_type === 'image_path';
   const isMultiline = setting.value_type === 'multiline';
 
   return (
     <Box
       sx={{
-        display: 'flex',
-        alignItems: isEditing && isMultiline ? 'flex-start' : 'center',
-        px: 2.5,
-        py: isEditing ? 1.5 : 1,
-        gap: 2,
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: 'minmax(210px, 0.7fr) minmax(260px, 1.3fr) auto' },
+        alignItems: isEditing && isMultiline ? 'start' : 'center',
+        gap: { xs: 1.25, md: 3 },
+        px: { xs: 2, sm: 3 },
+        py: isEditing ? 2.5 : 2,
         borderBottom: isLast ? 'none' : '1px solid rgba(26,32,53,0.08)',
-        backgroundColor: isEditing ? 'rgba(13,107,95,0.04)' : 'transparent',
+        backgroundColor: isEditing ? 'rgba(13,107,95,0.045)' : 'transparent',
         transition: 'background-color 150ms ease',
-        '&:hover': !isEditing
-          ? { backgroundColor: 'rgba(13,107,95,0.04)' }
-          : undefined,
+        '&:hover': !isEditing ? { backgroundColor: 'rgba(13,107,95,0.025)' } : undefined,
       }}
     >
-      {/* Label column */}
-      <Box sx={{ flex: '0 0 180px', minWidth: 0 }}>
-        <Typography
-          sx={{ fontSize: '0.8125rem', fontWeight: 500, color: 'text.primary', lineHeight: 1.3 }}
-        >
+      <Box>
+        <Typography sx={{ fontSize: '0.9375rem', fontWeight: 700, color: 'text.primary', lineHeight: 1.35 }}>
           {setting.label}
         </Typography>
         {setting.description && (
-          <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled', mt: 0.25 }}>
+          <Typography sx={{ fontSize: '0.8125rem', color: 'text.secondary', mt: 0.4, lineHeight: 1.45 }}>
             {setting.description}
           </Typography>
         )}
@@ -69,28 +65,15 @@ export const SettingRow = ({
           <Chip
             label={setting.key}
             size="small"
-            sx={{
-              mt: 0.5,
-              height: 16,
-              fontSize: '0.8rem',
-              fontFamily: 'monospace',
-              color: 'text.disabled',
-              borderColor: 'rgba(0,0,0,0.12)',
-              '& .MuiChip-label': { px: 0.75 },
-            }}
             variant="outlined"
+            sx={{ mt: 0.75, height: 19, fontSize: '0.7rem', fontFamily: 'monospace', color: 'text.secondary', borderColor: 'rgba(26,32,53,0.14)' }}
           />
         )}
       </Box>
 
-      {/* Value column */}
-      <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box sx={{ minWidth: 0 }}>
         {isImageType ? (
-          <ImageField
-            preview={imagePreview}
-            isSaving={isSaving}
-            onUpload={onImageUpload}
-          />
+          <ImageField preview={imagePreview} isSaving={isSaving} onUpload={onImageUpload} />
         ) : isEditing ? (
           <TextField
             size="small"
@@ -99,125 +82,67 @@ export const SettingRow = ({
             minRows={isMultiline ? 3 : undefined}
             maxRows={isMultiline ? 6 : undefined}
             value={draft}
-            onChange={e => onChangeDraft(e.target.value)}
+            onChange={event => onChangeDraft(event.target.value)}
             autoFocus
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !isMultiline) {
-                e.preventDefault();
+            onKeyDown={event => {
+              if (event.key === 'Enter' && !isMultiline) {
+                event.preventDefault();
                 onSave();
               }
-              if (e.key === 'Escape') onCancel();
+              if (event.key === 'Escape') onCancel();
             }}
             sx={{
-              '& .MuiInputBase-input': { fontSize: '0.875rem', py: 0.75 },
-              '& .MuiOutlinedInput-root': {
-                '& fieldset': { borderColor: 'primary.main' },
-              },
+              '& .MuiInputBase-input': { fontSize: '0.9375rem', py: 1 },
+              '& .MuiOutlinedInput-root': { backgroundColor: '#fff' },
             }}
           />
         ) : (
-          <Typography
+          <Box
             onClick={onStartEdit}
             sx={{
-              fontSize: '0.875rem',
-              color: setting.value ? 'text.secondary' : 'text.disabled',
+              minHeight: 42,
+              display: 'flex',
+              alignItems: 'center',
+              px: 1.5,
+              py: 0.75,
+              borderRadius: 1.5,
+              backgroundColor: '#f5f3f0',
               cursor: 'text',
-              borderRadius: 1,
-              px: 0.5,
-              py: 0.25,
-              mx: -0.5,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              '&:hover': {
-                backgroundColor: 'rgba(26,32,53,0.05)',
-                color: 'text.primary',
-              },
+              transition: 'background-color 150ms ease',
+              '&:hover': { backgroundColor: 'rgba(13,107,95,0.09)' },
             }}
           >
-            {setting.value || <em style={{ opacity: 0.45 }}>Sin valor</em>}
-          </Typography>
+            <Typography sx={{ fontSize: '0.9375rem', color: setting.value ? 'text.primary' : 'text.secondary', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.45 }}>
+              {setting.value || <em>Aún sin configurar</em>}
+            </Typography>
+          </Box>
         )}
       </Box>
 
-      {/* Action column */}
-      <Box
-        sx={{
-          flex: '0 0 auto',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 0.5,
-          alignSelf: isEditing && isMultiline ? 'flex-start' : 'center',
-          mt: isEditing && isMultiline ? 0.5 : 0,
-        }}
-      >
-        {!isImageType && (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: { xs: 'flex-start', md: 'flex-end' }, gap: 0.5, minWidth: { md: 88 } }}>
+        {!isImageType && (isEditing ? (
           <>
-            {isEditing ? (
-              <>
-                <Tooltip title="Guardar (Enter)">
-                  <span>
-                    <IconButton
-                      size="small"
-                      onClick={onSave}
-                      disabled={isSaving}
-                      sx={{
-                        color: 'primary.main',
-                        p: 0.5,
-                        '&:hover': { backgroundColor: 'primary.50' },
-                      }}
-                    >
-                      {isSaving ? (
-                        <CircularProgress size={14} />
-                      ) : (
-                        <Check sx={{ fontSize: 16 }} />
-                      )}
-                    </IconButton>
-                  </span>
-                </Tooltip>
-                <Tooltip title="Cancelar (Esc)">
-                  <IconButton
-                    size="small"
-                    onClick={onCancel}
-                    sx={{ color: 'text.disabled', p: 0.5 }}
-                  >
-                    <Close sx={{ fontSize: 16 }} />
-                  </IconButton>
-                </Tooltip>
-              </>
-            ) : (
-              <Tooltip title="Editar">
-                <IconButton
-                  size="small"
-                  onClick={onStartEdit}
-                  sx={{
-                    color: 'text.disabled',
-                    p: 0.5,
-                    opacity: 0,
-                    '.MuiBox-root:hover &': { opacity: 1 },
-                    '&:hover': { color: 'primary.main', opacity: 1 },
-                  }}
-                >
-                  <Edit sx={{ fontSize: 15 }} />
+            <Tooltip title="Guardar cambio (Enter)">
+              <span>
+                <IconButton size="small" onClick={onSave} disabled={isSaving} sx={{ color: 'primary.main', border: '1px solid rgba(13,107,95,0.22)' }}>
+                  {isSaving ? <CircularProgress size={16} /> : <Check sx={{ fontSize: 18 }} />}
                 </IconButton>
-              </Tooltip>
-            )}
+              </span>
+            </Tooltip>
+            <Tooltip title="Cancelar (Esc)">
+              <IconButton size="small" onClick={onCancel} sx={{ color: 'text.secondary' }}><Close sx={{ fontSize: 18 }} /></IconButton>
+            </Tooltip>
           </>
-        )}
+        ) : (
+          <Button size="small" variant="text" startIcon={<Edit sx={{ fontSize: 16 }} />} onClick={onStartEdit} sx={{ whiteSpace: 'nowrap' }}>
+            Editar
+          </Button>
+        ))}
 
         {isDev && !isEditing && (
           <Tooltip title="Eliminar">
-            <IconButton
-              size="small"
-              onClick={onDelete}
-              sx={{
-                color: 'text.disabled',
-                p: 0.5,
-                opacity: 0,
-                '.MuiBox-root:hover &': { opacity: 1 },
-                '&:hover': { color: 'error.main', opacity: 1 },
-              }}
-            >
-              <Delete sx={{ fontSize: 15 }} />
+            <IconButton size="small" onClick={onDelete} sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+              <Delete sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
         )}
