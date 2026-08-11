@@ -2,368 +2,251 @@
 
 <div align="center">
 
-[![Tauri](https://img.shields.io/badge/Tauri-2.0-blue?logo=tauri)](https://tauri.app/)
-[![React](https://img.shields.io/badge/React-18+-61dafb?logo=react)](https://react.dev/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.x-blue?logo=tauri)](https://tauri.app/)
+[![React](https://img.shields.io/badge/React-17--19-61dafb?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?logo=typescript)](https://www.typescriptlang.org/)
 [![Rust](https://img.shields.io/badge/Rust-2021-ce422b?logo=rust)](https://www.rust-lang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**A modern point of sale (POS) system for desktop with intuitive interface and powerful management capabilities**
+**A desktop point-of-sale system for managing sales, inventory, cash registers, customers, and credit.**
 
-[Features](#-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-project-structure)
+[Features](#features) · [Installation](#installation) · [Development](#development) · [Architecture](#architecture) · [Testing](#testing)
 
 </div>
 
 ---
 
-## 📋 Overview
+## Overview
 
-**Almanza POS Desktop** is a professional point of sale application built with modern technologies. It combines the power of a Rust backend with the flexibility of React to create a smooth and responsive user experience.
+Almanza POS Desktop is a local point-of-sale application built with Tauri, React, and Rust. It is designed for small and medium-sized businesses that need cash-register operations, inventory control, multi-currency sales, customer and credit management, and ticket printing.
 
-Ideal for small and medium-sized businesses that need:
-- ✅ Complete sales management
-- ✅ Real-time inventory control
-- ✅ Detailed reports and analytics
-- ✅ Thermal ticket printing
-- ✅ Secure cash register handling
+Data is stored locally in SQLite. The application initializes and migrates the database automatically on startup.
 
----
+## Features
 
-## ⭐ Features
+### Sales and cash registers
 
-### 💰 Sales Management
-- Intuitive and fast POS interface
-- Support for multiple payment methods (cash, card, credit)
-- Automatic change calculation in multiple currencies (USD/MXN)
-- Receipts and thermal tickets
+- Point of sale with search by name and barcode.
+- Combined payments with MXN cash, USD cash, and bank transfer, including exchange rate and change calculation.
+- Opening, closing, and querying cash-register sessions; closing balances retain MXN and USD cash amounts.
+- Sales history, date filters, details, and sale cancellation.
+- Configurable sales tickets and optional automatic printing.
 
-### 📦 Advanced Inventory
-- Real-time stock tracking
-- Support for unit, weight, and volume products
-- Product categorization
-- Adjustments and movement audit
+### Catalog and inventory
 
-### 📊 Comprehensive Reports
-- Sales reports with multiple filters
-- Income and profitability analysis
-- Export to Excel and PDF
-- Dashboards with key metrics
+- Products, categories, prices, minimum stock, and active/inactive products.
+- Discrete and bulk units: piece, kilogram, liter, meter, package, box, and others.
+- Unit conversion for bulk products and sale entry by base unit, subunit, or amount.
+- Inventory adjustments with reasons and stock audit history.
 
-### 👥 User Management
-- Secure authentication with bcrypt
-- User roles (admin, seller)
-- Role-based access control (RBAC)
-- Operation audit
+### Customers and credit
 
-### 🏦 Cash Registers
-- Cash drawer opening and closing
-- Operation summaries
-- Cash reconciliation
-- Session history
+- Customer directory with phone, notes, status, and credit limit.
+- Credit sales, customer balances, and account movements.
+- Customer payments with the same payment-method breakdown used in sales.
 
-### 🛠️ Integrations
-- Barcode codes
-- Thermal printers via serial and USB port
-- Customizable application configuration
-- Local persistence with SQLite
+### Administration and reports
 
----
+- Users with `admin` and `cashier` roles; administrative screens are protected by role.
+- Sales reports, metrics, best-selling products, receivables, and debtors.
+- Excel and PDF report export.
+- Business data, logo, ticket header/footer, credit rules, and printer configuration.
 
-## 🚀 Prerequisites
+### Printing
 
-Before getting started, make sure you have installed:
+- ESC/POS tickets through USB (VID/PID) or the Windows print spooler.
+- Windows printer detection, print test, and paper size, DPI, encoding, and cut-type configuration.
 
-- **Node.js** `≥ 18.0` ([download](https://nodejs.org/))
-- **Rust** `≥ 1.70` ([install](https://rustup.rs/))
-- **npm** or **yarn** (included with Node.js)
+## Prerequisites
 
-### Verify Installation
+- An LTS Node.js release compatible with Vite 7 and npm.
+- Stable Rust and Cargo.
+- On Windows, Tauri build requirements: Microsoft C++ Build Tools and Microsoft Edge WebView2 Runtime.
+
+Verify the installed tools:
+
 ```bash
-node --version      # v18.0.0 or later
-npm --version       # 9.0.0 or later
-rustc --version     # rustc 1.70.0 or later
-cargo --version     # cargo 1.70.0 or later
+node --version
+npm --version
+rustc --version
+cargo --version
 ```
 
----
+## Installation
 
-## 📦 Installation
-
-### 1. Clone the Repository
 ```bash
 git clone https://github.com/angel-almanza/almanza-pos-desktop.git
 cd almanza-pos-desktop
-```
-
-### 2. Install Dependencies
-```bash
 npm install
 ```
 
-### 3. Verify Build
+Verify that the frontend builds correctly:
+
 ```bash
 npm run build
 ```
 
----
+## Development
 
-## 🎯 Quick Start
+### Frontend
 
-### Development - Frontend Only
 ```bash
 npm run dev
 ```
-Starts Vite server at `http://localhost:5173`
 
-### Development - Full Application (Recommended)
+Starts Vite at `http://localhost:1420`.
+
+### Desktop application
+
 ```bash
 npm run tauri dev
 ```
-Opens the complete desktop application with hot-reload
 
-### Build for Production
+Starts the full Tauri application with hot reload.
+
+### Production build
+
 ```bash
 npm run tauri build
 ```
-Generates the executable in `src-tauri/target/release/`
 
-### Default Credentials
-- **Username**: `root`
-- **Password**: `root`
+Generated installers and packages are located in `src-tauri/target/release/bundle/`.
 
----
+### Default credentials
 
-## 📜 Available Scripts
+A new database is seeded with the following administrator account:
 
-### Frontend
+- Username: `root`
+- Password: `root`
+
+> Change these credentials before using the application in production.
+
+## Available commands
+
 ```bash
-npm run dev              # Vite dev server
-npm run build           # TypeScript check + build
-npm run preview         # Preview production build
+# Frontend
+npm run dev              # Vite development server
+npm run build            # TypeScript validation and Vite build
+npm run preview          # Preview the production build
 
-npm test                # Unit tests (one-shot)
-npm run test:watch      # Tests in watch mode
-npm run test:coverage   # Coverage report
-```
+# Frontend tests
+npm test                 # Run Vitest once
+npm run test:watch       # Run Vitest in watch mode
+npm run test:coverage    # Generate coverage with Vitest
 
-### Tauri (Full Stack)
-```bash
-npm run tauri dev       # Desktop app with hot-reload
-npm run tauri build     # Production build
-```
+# Tauri
+npm run tauri dev        # Desktop application in development
+npm run tauri build      # Production packages
 
-### Rust Backend
-```bash
+# Rust backend
 cd src-tauri
-cargo test              # Rust unit tests
-cargo test money        # Module-specific tests (e.g., money.rs)
-cargo check            # Validation without building
+cargo test               # All Rust tests
+cargo test money         # Money-related tests
+cargo check              # Fast type validation
 ```
 
----
-
-## 🏗️ Project Structure
-
-```
-almanza-pos-desktop/
-├── src/                          # Frontend (React + TypeScript)
-│   ├── components/               # Reusable components
-│   │   ├── pos/                 # POS-specific components
-│   │   ├── reports/             # Reports components
-│   │   ├── cash-register/       # Cash register components
-│   │   └── settings/            # Settings components
-│   ├── pages/                   # Main pages
-│   │   ├── LoginPage.tsx
-│   │   ├── POSPage.tsx
-│   │   ├── InventoryPage.tsx
-│   │   ├── SalesPage.tsx
-│   │   ├── ReportsPage.tsx
-│   │   └── ...
-│   ├── services/                # Services invoking Rust commands
-│   │   ├── AuthService.ts
-│   │   ├── ProductService.ts
-│   │   ├── SaleService.ts
-│   │   └── ...
-│   ├── context/                 # React Context (Auth, POS)
-│   │   ├── AuthContext.tsx
-│   │   └── PosProvider.tsx
-│   ├── guards/                  # Route guards (Auth, Admin)
-│   ├── utils/                   # Utilities (formatting, reports)
-│   ├── models/                  # TypeScript types
-│   ├── dto/                     # Data Transfer Objects
-│   ├── __tests__/              # Unit tests
-│   └── App.tsx
-│
-├── src-tauri/                   # Backend (Rust + Tauri)
-│   ├── src/
-│   │   ├── lib.rs              # Tauri setup and command registration
-│   │   ├── commands/           # IPC command handlers
-│   │   │   ├── auth.rs
-│   │   │   ├── product.rs
-│   │   │   ├── sale.rs
-│   │   │   └── ...
-│   │   ├── db/                 # Database
-│   │   │   ├── mod.rs          # Database struct
-│   │   │   ├── schema.rs       # DDL and migrations
-│   │   │   └── repository/     # SQL queries
-│   │   ├── models/             # Rust structs
-│   │   └── utils/              # Utilities
-│   │       └── money.rs        # Monetary rounding helpers
-│   └── Cargo.toml
-│
-├── package.json
-├── vite.config.ts
-├── tsconfig.json
-├── vitest.config.ts
-├── CLAUDE.md                   # Development guide
-└── README.md
-```
-
----
-
-## 🛠️ Architecture
-
-### Frontend → Backend
-All communication is through **Tauri IPC** (`invoke()`):
-```typescript
-// Frontend
-import { invoke } from '@tauri-apps/api/core';
-
-const result = await invoke('create_sale', {
-  items: cartItems
-});
-```
-
-```rust
-// Backend
-#[tauri::command]
-pub fn create_sale(db: tauri::State<Database>, items: Vec<SaleItem>) -> Result<Sale, String> {
-  // Logic...
-}
-```
-
-### State and Context
-- **AuthContext**: Stores user session (localStorage)
-- **PosProvider**: Manages shopping cart (useReducer with Decimal.js)
-- **Database**: SQLite with transactions and foreign keys enabled
-
-### Monetary Precision
-- **Frontend**: `decimal.js` for all price × quantity operations
-- **Backend**: Functions in `money.rs` (`round2`, `round3`, `mul_money`) to prevent floating-point drift
-
----
-
-## 📊 Technology Stack
+## Architecture
 
 ### Frontend
-| Library | Version | Purpose |
-|---------|---------|---------|
-| **React** | 18+ | UI Framework |
-| **TypeScript** | 5.8 | Type Safety |
-| **Vite** | 7.0 | Build Tool |
-| **Material UI** | 7.3 | Component Library |
-| **Decimal.js** | 10.6 | Monetary precision |
-| **ExcelJS** | 4.4 | Report generation |
-| **jsPDF** | 4.1 | PDF generation |
-| **Vitest** | 4.0 | Testing |
+
+The frontend uses React, TypeScript, Material UI, and React Router. It is organized by domain:
+
+```text
+src/
+├── core/                         # App, theme, layout, and guards
+│   ├── App.tsx
+│   ├── guards/
+│   └── layout/
+├── modules/
+│   ├── auth/                     # Session and authentication
+│   ├── cash-register/            # Cash-register sessions
+│   ├── catalog/
+│   │   ├── categories/
+│   │   ├── inventory/
+│   │   └── products/
+│   ├── customers/                # Customers, credit, and payments
+│   ├── pos/                      # Cart and checkout flow
+│   ├── reports/                  # Metrics and export
+│   ├── sales/                    # Sales history and queries
+│   ├── settings/                 # Business, ticket, and printing settings
+│   ├── users/
+│   └── shared/                   # Shared types, utilities, and components
+└── __tests__/                    # Module-level unit tests
+```
+
+Each module groups its pages, components, services, and types. Services encapsulate Tauri `invoke()` calls and keep communication with Rust typed.
+
+`AuthProvider` persists the session in `localStorage`. `PosProvider` wraps only the `/pos` route and manages the cart with `useReducer`.
 
 ### Backend
-| Library | Version | Purpose |
-|---------|---------|---------|
-| **Tauri** | 2.0 | App Framework |
-| **Rust** | 2021 | Language |
-| **rusqlite** | 0.31 | Database |
-| **bcrypt** | 0.15 | Password hashing |
-| **tokio** | 1.0 | Async runtime |
-| **serde** | 1.0 | Serialization |
-| **qrcode** | 0.12 | QR Codes |
-| **barcode** | 0.17 | Barcodes |
 
----
+The backend follows vertical slices with inbound and outbound adapters:
 
-## 🧪 Testing
+```text
+src-tauri/src/
+├── bootstrap.rs                  # Tauri plugin, state, and command registration
+├── infrastructure/sqlite/        # SQLite connection and versioned migrations
+├── modules/
+│   ├── identity/
+│   ├── catalog/
+│   ├── inventory/
+│   ├── sales/
+│   ├── cash_register/
+│   ├── accounts_receivable/
+│   ├── settings/
+│   └── printing/
+│       ├── application.rs
+│       └── adapters/
+│           ├── inbound/tauri.rs  # IPC commands
+│           └── outbound/sqlite.rs
+├── printer/                      # Configuration, hardware, and ESC/POS
+├── models/
+└── shared/                       # Money, pagination, and errors
+```
 
-### Frontend
+The SQLite database is stored as `pos.db` in the application data directory. WAL mode and foreign keys are enabled. Migrations run transactionally, are recorded with checksums, and support existing databases.
+
+### Monetary and inventory precision
+
+- Frontend: `decimal.js` for price, quantity, and payment calculations.
+- Backend: shared helpers round monetary amounts to two decimal places and stock quantities to three decimal places.
+- Sale, cancellation, credit, and inventory operations validate their inputs and protect compound operations with SQLite transactions.
+
+## Main technologies
+
+| Area | Technologies |
+| --- | --- |
+| Interface | React, TypeScript, Vite, Material UI, MUI X Date Pickers |
+| Desktop | Tauri 2, Dialog, Filesystem, and Opener plugins |
+| State and precision | React Context, `useReducer`, decimal.js |
+| Reports | ExcelJS, jsPDF, jsPDF-AutoTable |
+| Backend | Rust, rusqlite, serde, bcrypt, tokio |
+| Printing | ESC/POS, serialport, and Windows printing APIs |
+| Testing | Vitest and Rust unit tests |
+
+## Testing
+
 ```bash
-# Run all tests
+# All frontend tests
 npm test
 
-# Watch mode
-npm run test:watch
+# A specific frontend test
+npx vitest run src/__tests__/modules/shared/utils/formatCurrency.test.ts
 
-# With coverage
-npm run test:coverage
-
-# Specific test
-npx vitest run src/__tests__/utils/formatCurrency.test.ts
-```
-
-### Backend
-```bash
+# All backend tests
 cd src-tauri
-
-# All tests
 cargo test
-
-# Module-specific tests
-cargo test money
 ```
+
+Tests cover monetary calculations, unit conversion, the POS reducer, sale-item presentation, reports, migrations, payments, bulk products, and ESC/POS printing.
+
+## Security and data
+
+- Passwords are protected with bcrypt.
+- Authentication and role-based access control.
+- Validation in both the UI and backend commands.
+- SQLite transactions, constraints, and referential integrity.
+- Local persistence: this project does not synchronize data with a remote service.
 
 ---
 
-## 🔐 Security
-
-- ✅ Authentication with bcrypt
-- ✅ Passwords stored with hash
-- ✅ Role-based access control (RBAC)
-- ✅ ACID transactions in database
-- ✅ Foreign keys and constraints enabled
-- ✅ Input validation on client and server
-
----
-
-## 📈 Performance
-
-- 🚀 Data preloading with Tauri
-- 📦 Optimized bundle with Vite
-- 💾 Local caching with SQLite
-- ⚡ Decimal.js to prevent unnecessary recalculations
-- 🔄 Hot-reload in development
-
----
-
-## 📝 Code Standards
-
-### Frontend (TypeScript/React)
-```typescript
-// ✅ Good
-const formatPrice = (price: number): string => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price);
-};
-
-// ❌ Avoid
-const formatPrice = (price: any) => {
-  return '$' + price;
-};
-```
-
-### Commit Messages
-```
-type(scope): description
-
-feat(pos): add quantity dialog for products
-fix(inventory): fix rounding in stock
-docs(readme): update instructions
-```
-
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
-
----
-
-<div align="center">
-
-**Made with ❤️ by Angel Almanza**
-
-[⬆ Back to top](#-almanza-pos-desktop)
-
-</div>
+Made with ❤️ by Angel Almanza.
