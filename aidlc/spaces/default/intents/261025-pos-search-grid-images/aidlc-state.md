@@ -45,6 +45,28 @@
 - **Construction Iteration**: unit-major
 - **Construction Execution**: serial
 
+- **Skeleton Stance**: scope-dependent
+
+
+
+
+
+
+
+- **Construction Verification Command**: cargo test --manifest-path src-tauri/Cargo.toml && npx vitest run
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Phase Progress
 <!-- Status values: Pending, Active, Verified, Skipped -->
 
@@ -106,7 +128,9 @@ Per unit: [TBD]
 - **Current Stage**: functional-design
 - **Next Stage**: code-generation
 - **Status**: Running
-- **Last Updated**: 2026-10-25T19:52:29Z
+- **Last Updated**: 2026-10-26T20:09:23Z
+
+- **Construction Autonomy Mode**: gated
 
 ## Session Resume Point
 - **Last Completed Stage**: units-generation

@@ -1,6 +1,6 @@
 use crate::infrastructure::sqlite::Database;
 use crate::models::product::Product;
-use crate::modules::catalog::products::application::ProductRepository;
+use crate::modules::catalog::products::application::{ImageFileUpdate, ProductRepository};
 use crate::shared::error::{AppError, AppResult};
 use rusqlite::params;
 
@@ -35,7 +35,11 @@ impl ProductRepository for SqliteProductRepository<'_> {
         search(self.db, term)
     }
 
-    fn create(&self, request: &crate::models::product::CreateProductRequest) -> AppResult<Product> {
+    fn create(
+        &self,
+        request: &crate::models::product::CreateProductRequest,
+        image_file: Option<&str>,
+    ) -> AppResult<Product> {
         create(
             self.db,
             &request.name,
@@ -47,10 +51,15 @@ impl ProductRepository for SqliteProductRepository<'_> {
             request.category_id,
             request.stock.unwrap_or(0.0),
             request.min_stock.unwrap_or(0.0),
+            image_file,
         )
     }
 
-    fn update(&self, request: &crate::models::product::UpdateProductRequest) -> AppResult<Product> {
+    fn update(
+        &self,
+        request: &crate::models::product::UpdateProductRequest,
+        image: ImageFileUpdate,
+    ) -> AppResult<Product> {
         update(
             self.db,
             request.id,
@@ -63,6 +72,7 @@ impl ProductRepository for SqliteProductRepository<'_> {
             request.category_id,
             request.min_stock,
             request.active,
+            image,
         )
     }
 
@@ -87,13 +97,14 @@ fn row_to_product(row: &rusqlite::Row) -> rusqlite::Result<Product> {
         active: row.get::<_, i32>(11)? == 1,
         created_at: row.get(12)?,
         updated_at: row.get(13)?,
+        image_file: row.get(14)?,
     })
 }
 
 const SELECT_QUERY: &str = "\
     SELECT p.id, p.name, p.description, p.barcode, p.price, p.unit, p.is_bulk, \
         p.category_id, c.name as category_name, p.stock, p.min_stock, \
-        p.active, p.created_at, p.updated_at \
+        p.active, p.created_at, p.updated_at, p.image_file \
     FROM products p LEFT JOIN categories c ON p.category_id = c.id";
 
 pub fn find_all(db: &Database) -> AppResult<Vec<Product>> {
@@ -164,12 +175,13 @@ pub fn create(
     category_id: Option<i64>,
     stock: f64,
     min_stock: f64,
+    image_file: Option<&str>,
 ) -> AppResult<Product> {
     let conn = db.conn.lock()?;
     conn.execute(
-        "INSERT INTO products (name, description, barcode, price, unit, is_bulk, category_id, stock, min_stock) \
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        params![name, description, barcode, price, unit, is_bulk, category_id, stock, min_stock],
+        "INSERT INTO products (name, description, barcode, price, unit, is_bulk, category_id, stock, min_stock, image_file) \
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![name, description, barcode, price, unit, is_bulk, category_id, stock, min_stock, image_file],
     )?;
 
     let id = conn.last_insert_rowid();
@@ -190,8 +202,13 @@ pub fn update(
     category_id: Option<i64>,
     min_stock: Option<f64>,
     active: Option<bool>,
+    image: ImageFileUpdate,
 ) -> AppResult<Product> {
-    let conn = db.conn.lock()?;
+    let guard = db.conn.lock()?;
+    // BR2.2: todas las escrituras del producto van en una sola transacción;
+    // si una falla, el `Drop` de la transacción las revierte.
+    let tx = guard.unchecked_transaction()?;
+    let conn = &tx;
 
     if let Some(val) = name {
         conn.execute(
@@ -249,8 +266,24 @@ pub fn update(
             params![active_int, id],
         )?;
     }
+    match &image {
+        ImageFileUpdate::Keep => {}
+        ImageFileUpdate::Set(file) => {
+            conn.execute(
+                "UPDATE products SET image_file = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
+                params![file, id],
+            )?;
+        }
+        ImageFileUpdate::Clear => {
+            conn.execute(
+                "UPDATE products SET image_file = NULL, updated_at = datetime('now', 'localtime') WHERE id = ?1",
+                params![id],
+            )?;
+        }
+    }
 
-    drop(conn);
+    tx.commit()?;
+    drop(guard);
     find_by_id(db, id)?.ok_or_else(|| AppError::NotFound("Producto no encontrado".to_string()))
 }
 
@@ -286,8 +319,9 @@ pub fn delete(db: &Database, id: i64) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{create, update};
+    use super::{create, delete, find_by_id, update};
     use crate::infrastructure::sqlite::Database;
+    use crate::modules::catalog::products::application::ImageFileUpdate;
     use rusqlite::Connection;
     use std::sync::Mutex;
 
@@ -311,8 +345,10 @@ mod tests {
                 min_stock REAL NOT NULL DEFAULT 0,
                 active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL DEFAULT '2026-01-01 00:00:00',
-                updated_at TEXT NOT NULL DEFAULT '2026-01-01 00:00:00'
+                updated_at TEXT NOT NULL DEFAULT '2026-01-01 00:00:00',
+                image_file TEXT
             );
+            CREATE UNIQUE INDEX idx_products_image_file ON products(image_file) WHERE image_file IS NOT NULL;
             CREATE TABLE sale_items (product_id INTEGER);
             CREATE TABLE inventory_adjustments (product_id INTEGER);",
         )
@@ -326,24 +362,110 @@ mod tests {
     #[test]
     fn creates_and_updates_the_explicit_bulk_flag() {
         let db = test_database();
-        let created = create(&db, "Tomate", None, None, 42.50, "kg", true, None, 5.0, 0.5).unwrap();
+        let created = create(&db, "Tomate", None, None, 42.50, "kg", true, None, 5.0, 0.5, None)
+            .unwrap();
         assert!(created.is_bulk);
 
-        let updated = update(
-            &db,
-            created.id,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(false),
-            None,
-            None,
-            None,
-        )
-        .unwrap();
+        let updated = update_with(&db, created.id, None, Some(false), ImageFileUpdate::Keep)
+            .unwrap();
         assert!(!updated.is_bulk);
         assert_eq!(updated.unit, "kg");
+    }
+
+    fn update_with(
+        db: &Database,
+        id: i64,
+        name: Option<&str>,
+        is_bulk: Option<bool>,
+        image: ImageFileUpdate,
+    ) -> crate::shared::error::AppResult<crate::models::product::Product> {
+        update(
+            db, id, name, None, None, None, None, is_bulk, None, None, None, image,
+        )
+    }
+
+    fn new_product(db: &Database, name: &str, image: Option<&str>) -> i64 {
+        create(db, name, None, None, 1.0, "pieza", false, None, 0.0, 0.0, image)
+            .unwrap()
+            .id
+    }
+
+    #[test]
+    fn creates_a_product_with_an_image_and_reads_it_back() {
+        let db = test_database();
+        let created = create(&db, "Leche", None, None, 20.0, "pieza", false, None, 0.0, 0.0, Some("a.png"))
+            .unwrap();
+        assert_eq!(created.image_file.as_deref(), Some("a.png"));
+        let found = find_by_id(&db, created.id).unwrap().unwrap();
+        assert_eq!(found.image_file.as_deref(), Some("a.png"));
+    }
+
+    #[test]
+    fn products_without_image_have_a_null_image_file() {
+        let db = test_database();
+        let id = new_product(&db, "Pan", None);
+        assert!(find_by_id(&db, id).unwrap().unwrap().image_file.is_none());
+    }
+
+    #[test]
+    fn update_sets_clears_and_keeps_the_image_file() {
+        let db = test_database();
+        let id = new_product(&db, "Pan", None);
+
+        let set = update_with(&db, id, None, None, ImageFileUpdate::Set("n.webp".into())).unwrap();
+        assert_eq!(set.image_file.as_deref(), Some("n.webp"));
+
+        let kept = update_with(&db, id, Some("Pan dulce"), None, ImageFileUpdate::Keep).unwrap();
+        assert_eq!(kept.image_file.as_deref(), Some("n.webp"));
+        assert_eq!(kept.name, "Pan dulce");
+
+        let cleared = update_with(&db, id, None, None, ImageFileUpdate::Clear).unwrap();
+        assert!(cleared.image_file.is_none());
+    }
+
+    #[test]
+    fn a_failed_update_rolls_back_every_field_of_the_transaction() {
+        let db = test_database();
+        let first = new_product(&db, "Uno", Some("dup.png"));
+        let second = new_product(&db, "Dos", None);
+
+        // El nombre se escribe antes de la imagen; la imagen duplicada falla por el índice único.
+        let result = update_with(
+            &db,
+            second,
+            Some("Renombrado"),
+            None,
+            ImageFileUpdate::Set("dup.png".into()),
+        );
+        assert!(result.is_err());
+
+        let unchanged = find_by_id(&db, second).unwrap().unwrap();
+        assert_eq!(unchanged.name, "Dos");
+        assert!(unchanged.image_file.is_none());
+        let other = find_by_id(&db, first).unwrap().unwrap();
+        assert_eq!(other.image_file.as_deref(), Some("dup.png"));
+    }
+
+    #[test]
+    fn deleting_a_product_with_sales_changes_nothing() {
+        let db = test_database();
+        let id = new_product(&db, "Vendido", Some("keep.png"));
+        db.conn
+            .lock()
+            .unwrap()
+            .execute("INSERT INTO sale_items (product_id) VALUES (?1)", [id])
+            .unwrap();
+
+        assert!(delete(&db, id).is_err());
+        let still = find_by_id(&db, id).unwrap().unwrap();
+        assert_eq!(still.image_file.as_deref(), Some("keep.png"));
+    }
+
+    #[test]
+    fn deleting_a_free_product_removes_the_row() {
+        let db = test_database();
+        let id = new_product(&db, "Libre", Some("free.png"));
+        delete(&db, id).unwrap();
+        assert!(find_by_id(&db, id).unwrap().is_none());
     }
 }

@@ -1,0 +1,26 @@
+{
+  "stage": "functional-design",
+  "unit": "product-image",
+  "upstream_ids": ["AC4.1", "AC4.2", "AC4.3", "AC4.4", "AC4.5", "AC4.6", "AC4.7", "AC4.8", "AC4.9"],
+  "coverage": [
+    { "id": "AC4.1", "status": "OK", "target": "BR1.1, BR1.2, BR1.3, BR2.1, BR2.2" },
+    { "id": "AC4.2", "status": "OK", "target": "BR1.3" },
+    { "id": "AC4.3", "status": "OK", "target": "BR1.2" },
+    { "id": "AC4.4", "status": "OK", "target": "BR2.3, BR3.1" },
+    { "id": "AC4.5", "status": "OK", "target": "BR2.2" },
+    { "id": "AC4.6", "status": "OK", "target": "BR5.2" },
+    { "id": "AC4.7", "status": "OK", "target": "BR3.1" },
+    { "id": "AC4.8", "status": "OK", "target": "BR2.4" },
+    { "id": "AC4.9", "status": "OK", "target": "BR2.5" }
+  ],
+  "reverse": [
+    { "id": "BR1.1", "status": "OK", "target": "AC4.1" },
+    { "id": "BR1.4", "status": "N/A", "target": "FR4.4: archivo inexistente o sin permiso; sin AC propio en requisitos" },
+    { "id": "BR2.6", "status": "N/A", "target": "NFR4: confinamiento de rutas; regla técnica de seguridad" },
+    { "id": "BR2.7", "status": "N/A", "target": "FR4.8-FR4.10: tolerancia a fallas al borrar la copia vieja" },
+    { "id": "BR3.2", "status": "N/A", "target": "NFR2, NFR4: alcance del protocolo de archivos" },
+    { "id": "BR3.3", "status": "N/A", "target": "FR4.14: dónde se muestran las imágenes" },
+    { "id": "BR4.1", "status": "N/A", "target": "FR4.13, NFR5: migración de esquema" },
+    { "id": "BR5.1", "status": "N/A", "target": "FR4.1, FR4.8: validación del cambio de imagen en la petición" }
+  ]
+}

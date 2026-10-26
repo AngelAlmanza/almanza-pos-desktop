@@ -51,7 +51,7 @@ impl SettingsImageStorage for LocalSettingsImageStorage {
     }
 }
 
-fn bytes_to_data_url(bytes: &[u8], extension: &str) -> String {
+pub(crate) fn bytes_to_data_url(bytes: &[u8], extension: &str) -> String {
     let mime = match extension.to_ascii_lowercase().as_str() {
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",

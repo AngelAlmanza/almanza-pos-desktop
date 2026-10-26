@@ -139,7 +139,7 @@ fn find_product(db: &Database, id: i64) -> AppResult<Option<Product>> {
     let conn = db.conn.lock()?;
     conn.query_row(
         "SELECT p.id, p.name, p.description, p.barcode, p.price, p.unit, p.is_bulk, \
-            p.category_id, c.name, p.stock, p.min_stock, p.active, p.created_at, p.updated_at \
+            p.category_id, c.name, p.stock, p.min_stock, p.active, p.created_at, p.updated_at, p.image_file \
             FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = ?1",
         params![id],
         |row| {
@@ -158,6 +158,7 @@ fn find_product(db: &Database, id: i64) -> AppResult<Option<Product>> {
                 active: row.get::<_, i64>(11)? != 0,
                 created_at: row.get(12)?,
                 updated_at: row.get(13)?,
+                image_file: row.get(14)?,
             })
         },
     )
@@ -807,5 +808,40 @@ mod tests {
         assert_eq!(balance, 20.0);
         assert!(cancel_sale(&db, sale.id).is_err());
         assert_eq!(product_stock(&db), 4.0);
+    }
+
+    #[test]
+    fn find_product_returns_the_image_file_column() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+            CREATE TABLE products (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                barcode TEXT,
+                price REAL NOT NULL,
+                unit TEXT NOT NULL,
+                is_bulk INTEGER NOT NULL DEFAULT 0,
+                category_id INTEGER,
+                stock REAL NOT NULL DEFAULT 0,
+                min_stock REAL NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT '2026-01-01',
+                updated_at TEXT NOT NULL DEFAULT '2026-01-01',
+                image_file TEXT
+            );
+            INSERT INTO products (id, name, price, unit, image_file) VALUES (1, 'Con imagen', 5, 'pieza', 'a.png');
+            INSERT INTO products (id, name, price, unit) VALUES (2, 'Sin imagen', 5, 'pieza');",
+        )
+        .unwrap();
+        let db = Database {
+            conn: Mutex::new(conn),
+        };
+
+        let with_image = super::find_product(&db, 1).unwrap().unwrap();
+        assert_eq!(with_image.image_file.as_deref(), Some("a.png"));
+        let without = super::find_product(&db, 2).unwrap().unwrap();
+        assert!(without.image_file.is_none());
     }
 }

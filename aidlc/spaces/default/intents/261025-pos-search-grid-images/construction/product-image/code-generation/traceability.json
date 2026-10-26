@@ -1,0 +1,41 @@
+{
+  "stage": "code-generation",
+  "unit": "product-image",
+  "upstream_ids": [
+    "AC4.1", "AC4.2", "AC4.3", "AC4.4", "AC4.5", "AC4.6", "AC4.7", "AC4.8", "AC4.9",
+    "NFR2", "NFR4", "NFR5",
+    "BR1.1", "BR1.2", "BR1.3", "BR1.4",
+    "BR2.1", "BR2.2", "BR2.3", "BR2.4", "BR2.5", "BR2.6", "BR2.7",
+    "BR3.1", "BR3.2", "BR3.3", "BR4.1", "BR5.1", "BR5.2"
+  ],
+  "coverage": [
+    { "id": "AC4.1", "status": "OK", "target": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "id": "AC4.2", "status": "OK", "target": "src-tauri/src/modules/catalog/products/image.rs" },
+    { "id": "AC4.3", "status": "OK", "target": "src-tauri/src/modules/catalog/products/image.rs" },
+    { "id": "AC4.4", "status": "OK", "target": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "id": "AC4.5", "status": "OK", "target": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "id": "AC4.6", "status": "OK", "target": "src/modules/catalog/products/utils/productImageField.ts" },
+    { "id": "AC4.7", "status": "OK", "target": "src/modules/catalog/products/components/ProductImageField.tsx" },
+    { "id": "AC4.8", "status": "OK", "target": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "id": "AC4.9", "status": "OK", "target": "src-tauri/src/modules/catalog/products/adapters/outbound/filesystem.rs" },
+    { "id": "NFR2", "status": "OK", "target": "src-tauri/tauri.conf.json" },
+    { "id": "NFR4", "status": "OK", "target": "src-tauri/src/modules/catalog/products/image.rs" },
+    { "id": "NFR5", "status": "OK", "target": "src-tauri/src/infrastructure/sqlite/migrations/0007_products_image_file.sql" },
+    { "id": "BR1.1", "status": "OK", "target": "src-tauri/src/modules/catalog/products/image.rs" },
+    { "id": "BR1.2", "status": "OK", "target": "src-tauri/src/modules/catalog/products/image.rs" },
+    { "id": "BR1.3", "status": "OK", "target": "src-tauri/src/modules/catalog/products/image.rs" },
+    { "id": "BR1.4", "status": "OK", "target": "src-tauri/src/modules/catalog/products/adapters/outbound/filesystem.rs" },
+    { "id": "BR2.1", "status": "OK", "target": "src-tauri/src/modules/catalog/products/adapters/outbound/filesystem.rs" },
+    { "id": "BR2.2", "status": "OK", "target": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "id": "BR2.3", "status": "OK", "target": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "id": "BR2.4", "status": "OK", "target": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "id": "BR2.5", "status": "OK", "target": "src-tauri/src/modules/catalog/products/adapters/outbound/filesystem.rs" },
+    { "id": "BR2.6", "status": "OK", "target": "src-tauri/src/modules/catalog/products/image.rs" },
+    { "id": "BR2.7", "status": "OK", "target": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "id": "BR3.1", "status": "OK", "target": "src/modules/catalog/products/components/ProductImageField.tsx" },    { "id": "BR3.2", "status": "OK", "target": "src-tauri/tauri.conf.json" },
+    { "id": "BR3.3", "status": "OK", "target": "src/modules/catalog/products/pages/ProductsPage.tsx" },
+    { "id": "BR4.1", "status": "OK", "target": "src-tauri/src/infrastructure/sqlite/migrations/0007_products_image_file.sql" },
+    { "id": "BR5.1", "status": "OK", "target": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "id": "BR5.2", "status": "OK", "target": "src/modules/catalog/products/utils/productImageField.ts" }
+  ]
+}

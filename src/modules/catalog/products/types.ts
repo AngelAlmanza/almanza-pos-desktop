@@ -15,6 +15,20 @@ export interface Product {
   active: boolean;
   created_at: string;
   updated_at: string;
+  image_file: string | null;
+}
+
+export type ProductImageChangeKind = 'keep' | 'replace' | 'remove';
+
+export interface ProductImageChange {
+  kind: ProductImageChangeKind;
+  source_path?: string;
+}
+
+export interface ProductImagePreview {
+  format: string;
+  size_bytes: number;
+  preview: string;
 }
 
 export interface CreateProductDTO {
@@ -27,6 +41,7 @@ export interface CreateProductDTO {
   category_id?: number;
   stock?: number;
   min_stock?: number;
+  image?: ProductImageChange;
 }
 
 export interface UpdateProductDTO {
@@ -40,4 +55,5 @@ export interface UpdateProductDTO {
   category_id?: number;
   min_stock?: number;
   active?: boolean;
+  image?: ProductImageChange;
 }

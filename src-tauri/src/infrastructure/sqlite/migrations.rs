@@ -31,6 +31,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 6,
         sql: include_str!("migrations/0006_customer_movement_session_required.sql"),
     },
+    Migration {
+        version: 7,
+        sql: include_str!("migrations/0007_products_image_file.sql"),
+    },
 ];
 
 pub fn initialize(db: &Database) -> Result<(), String> {
@@ -228,7 +232,11 @@ fn detect_legacy_version(conn: &Connection) -> Result<i64, String> {
         return Ok(5);
     }
 
-    Ok(6)
+    if !has_columns(conn, "products", ["image_file"])? {
+        return Ok(6);
+    }
+
+    Ok(7)
 }
 
 fn migration_count(conn: &Connection) -> Result<i64, String> {
@@ -450,7 +458,7 @@ fn seed_default_settings(conn: &Connection) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply, apply_migration, checksum, Migration, MIGRATIONS};
+    use super::{apply, apply_migration, checksum, detect_legacy_version, Migration, MIGRATIONS};
     use rusqlite::Connection;
 
     #[test]
@@ -505,6 +513,71 @@ mod tests {
         let error = apply(&conn).unwrap_err();
         assert!(error.contains("checksum"));
         assert_ne!(checksum(MIGRATIONS[0].sql), "modified");
+    }
+
+    #[test]
+    fn migration_0007_adds_a_null_image_file_and_keeps_existing_products() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY,
+                checksum TEXT NOT NULL,
+                applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );",
+        )
+        .unwrap();
+        for migration in MIGRATIONS.iter().filter(|m| m.version < 7) {
+            apply_migration(&conn, migration, &checksum(migration.sql)).unwrap();
+        }
+        conn.execute(
+            "INSERT INTO products (name, price, unit) VALUES ('Leche', 22.5, 'litro')",
+            [],
+        )
+        .unwrap();
+
+        apply(&conn).unwrap();
+
+        let (name, price, image): (String, f64, Option<String>) = conn
+            .query_row(
+                "SELECT name, price, image_file FROM products WHERE name = 'Leche'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(name, "Leche");
+        assert_eq!(price, 22.5);
+        assert!(image.is_none());
+    }
+
+    #[test]
+    fn image_file_unique_index_rejects_duplicates_but_allows_many_nulls() {
+        let conn = Connection::open_in_memory().unwrap();
+        apply(&conn).unwrap();
+        for name in ["A", "B", "C"] {
+            conn.execute(
+                "INSERT INTO products (name, price, unit) VALUES (?1, 1, 'pieza')",
+                [name],
+            )
+            .unwrap();
+        }
+        conn.execute("UPDATE products SET image_file = 'x.png' WHERE name = 'A'", [])
+            .unwrap();
+        assert!(conn
+            .execute("UPDATE products SET image_file = 'x.png' WHERE name = 'B'", [])
+            .is_err());
+    }
+
+    #[test]
+    fn legacy_detection_recognizes_the_image_file_column() {
+        let conn = Connection::open_in_memory().unwrap();
+        apply(&conn).unwrap();
+        assert_eq!(detect_legacy_version(&conn).unwrap(), 7);
+
+        conn.execute_batch(
+            "DROP INDEX idx_products_image_file; ALTER TABLE products DROP COLUMN image_file;",
+        )
+        .unwrap();
+        assert_eq!(detect_legacy_version(&conn).unwrap(), 6);
     }
 
     #[test]

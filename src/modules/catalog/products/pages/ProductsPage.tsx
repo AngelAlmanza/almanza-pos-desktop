@@ -22,8 +22,14 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { ConfirmModal } from '@modules/shared/components/ConfirmModal';
+import { ProductImageField } from '@modules/catalog/products/components/ProductImageField';
+import {
+  initialProductImageFieldState,
+  productImageFieldReducer,
+  toImageChange,
+} from '@modules/catalog/products/utils/productImageField';
 import { UNITS } from '@modules/catalog/products/constants/Units';
 import type { CreateProductDTO, Product, UpdateProductDTO } from '@modules/catalog/products/types';
 import type { Category } from '@modules/catalog/categories/types';
@@ -44,6 +50,13 @@ export function ProductsPage() {
   const [catOpen, setCatOpen] = useState(false);
   const [catName, setCatName] = useState("");
   const [catDesc, setCatDesc] = useState("");
+  const [dialogError, setDialogError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [imageState, dispatchImage] = useReducer(
+    productImageFieldReducer,
+    null,
+    () => initialProductImageFieldState(null),
+  );
 
   const [form, setForm] = useState<{
     name: string;
@@ -96,6 +109,8 @@ export function ProductsPage() {
   };
 
   const handleOpen = (product?: Product) => {
+    setDialogError("");
+    dispatchImage({ type: "init", savedFile: product?.image_file ?? null });
     if (product) {
       setEditing(product);
       setForm({
@@ -115,8 +130,19 @@ export function ProductsPage() {
     setOpen(true);
   };
 
+  // Cancelar descarta el cambio de imagen pendiente (W5, BR5.2).
+  const handleCloseDialog = () => {
+    if (saving) return;
+    dispatchImage({ type: "cancel" });
+    setDialogError("");
+    setOpen(false);
+  };
+
   const handleSave = async () => {
+    setSaving(true);
+    setDialogError("");
     try {
+      const image = toImageChange(imageState);
       if (editing) {
         const dto: UpdateProductDTO = {
           id: editing.id,
@@ -130,6 +156,7 @@ export function ProductsPage() {
             ? parseInt(form.category_id)
             : undefined,
           min_stock: form.min_stock ? parseFloat(form.min_stock) : undefined,
+          image,
         };
         await ProductService.update(dto);
       } else {
@@ -145,6 +172,7 @@ export function ProductsPage() {
             : undefined,
           stock: form.stock ? parseFloat(form.stock) : 0,
           min_stock: form.min_stock ? parseFloat(form.min_stock) : 0,
+          image,
         };
         await ProductService.create(dto);
       }
@@ -152,9 +180,10 @@ export function ProductsPage() {
       resetForm();
       loadData();
     } catch (err) {
-      setError(String(err));
+      // El diálogo sigue abierto y conserva el cambio de imagen pendiente.
+      setDialogError(String(err));
     } finally {
-      cleanError(setError);
+      setSaving(false);
     }
   };
 
@@ -386,16 +415,40 @@ export function ProductsPage() {
       {/* Product Dialog */}
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
-        maxWidth="sm"
+        onClose={handleCloseDialog}
+        maxWidth="md"
         fullWidth
       >
         <DialogTitle>
           {editing ? "Editar Producto" : "Nuevo Producto"}
         </DialogTitle>
         <DialogContent>
+          {dialogError && (
+            <Alert
+              severity="error"
+              sx={{ mb: 1.5 }}
+              onClose={() => setDialogError("")}
+              data-testid="product-dialog-error"
+            >
+              {dialogError}
+            </Alert>
+          )}
           <Box
-            sx={{ display: "flex", flexDirection: "column", gap: 1.5, mt: 0.5 }}
+            sx={{
+              display: "flex",
+              flexDirection: { xs: "column", md: "row" },
+              gap: 2.5,
+              mt: 0.5,
+            }}
+          >
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 1.5,
+              flex: 1,
+              minWidth: 0,
+            }}
           >
             <TextField
               label="Nombre"
@@ -563,15 +616,31 @@ export function ProductsPage() {
               />
             )}
           </Box>
+          <Box sx={{ width: { xs: "100%", md: 240 }, flexShrink: 0 }}>
+            <ProductImageField
+              state={imageState}
+              dispatch={dispatchImage}
+              saving={saving}
+            />
+          </Box>
+          </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button onClick={() => setOpen(false)} color="inherit">
+          <Button
+            onClick={handleCloseDialog}
+            color="inherit"
+            disabled={saving}
+            data-testid="product-cancel"
+          >
             Cancelar
           </Button>
           <Button
             variant="contained"
             onClick={handleSave}
-            disabled={!form.name || !form.price || !hasValidBulkUnit}
+            disabled={
+              saving || !form.name || !form.price || !hasValidBulkUnit
+            }
+            data-testid="product-save"
           >
             {editing ? "Guardar" : "Crear"}
           </Button>

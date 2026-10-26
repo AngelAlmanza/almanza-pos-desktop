@@ -66,3 +66,4 @@
 
 <!-- Project-specific corrections from human feedback. -->
 <!-- Format: NEVER/ALWAYS [behavior] (learned [date]) -->
+- In Tauri 2, `$APPDATA` in `assetProtocol` scopes already resolves to `app_data_dir` (it includes the app identifier); never repeat the identifier in the scope, or the asset protocol answers 403 Forbidden. (learned 2026-10-26) <!-- cid:261025-pos-search-grid-images:code-generation:27099e1bb7d8fe51a320af7773c50efbe9a61395ac77e49ece9b337b9cecff47 -->

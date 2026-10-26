@@ -1,0 +1,33 @@
+{
+  "stage": "code-generation",
+  "unit": "product-image",
+  "version": 1,
+  "writes": [
+    { "path": "src-tauri/Cargo.toml" },
+    { "path": "src-tauri/Cargo.lock" },
+    { "path": "src-tauri/tauri.conf.json" },
+    { "path": "src-tauri/src/bootstrap.rs" },
+    { "path": "src-tauri/src/infrastructure/sqlite/migrations.rs" },
+    { "path": "src-tauri/src/infrastructure/sqlite/migrations/0007_products_image_file.sql" },
+    { "path": "src-tauri/src/models/product.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/mod.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/image.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/adapters/inbound/tauri.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/adapters/outbound/mod.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/adapters/outbound/filesystem.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/adapters/outbound/sqlite.rs" },
+    { "path": "src-tauri/src/modules/sales/adapters/inbound/tauri.rs" },
+    { "path": "src-tauri/src/modules/sales/adapters/outbound/sqlite.rs" },
+    { "path": "src-tauri/src/modules/settings/adapters/outbound/filesystem.rs" },
+    { "path": "src/modules/catalog/products/types.ts" },
+    { "path": "src/modules/catalog/products/services/ProductService.ts" },
+    { "path": "src/modules/catalog/products/pages/ProductsPage.tsx" },
+    { "path": "src/modules/catalog/products/components/ProductImageField.tsx" },
+    { "path": "src/modules/catalog/products/hooks/useProductImageSource.ts" },
+    { "path": "src/modules/catalog/products/utils/productImage.ts" },
+    { "path": "src/modules/catalog/products/utils/productImageField.ts" },
+    { "path": "src/__tests__/modules/catalog/products/productImage.test.ts" },
+    { "path": "src/__tests__/modules/catalog/products/productImageField.test.ts" }
+  ]
+}

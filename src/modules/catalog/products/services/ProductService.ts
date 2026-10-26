@@ -1,5 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { CreateProductDTO, Product, UpdateProductDTO } from '@modules/catalog/products/types';
+import type {
+  CreateProductDTO,
+  Product,
+  ProductImagePreview,
+  UpdateProductDTO,
+} from '@modules/catalog/products/types';
 
 export class ProductService {
   static async getAll(): Promise<Product[]> {
@@ -32,5 +37,18 @@ export class ProductService {
 
   static async delete(id: number): Promise<void> {
     return invoke<void>('delete_product', { id });
+  }
+
+  static async inspectImage(sourcePath: string): Promise<ProductImagePreview> {
+    return invoke<ProductImagePreview>('inspect_product_image', { sourcePath });
+  }
+
+  /** Respaldo: la copia guardada como data URL, o `null` si ya no existe. */
+  static async readImage(imageFile: string): Promise<string | null> {
+    return invoke<string | null>('read_product_image', { imageFile });
+  }
+
+  static async getImagesDir(): Promise<string> {
+    return invoke<string>('get_product_images_dir');
   }
 }

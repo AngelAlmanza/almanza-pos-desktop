@@ -93,6 +93,7 @@ mod tests {
             active: true,
             created_at: "2026-01-01".to_string(),
             updated_at: "2026-01-01".to_string(),
+            image_file: None,
         }
     }
 
