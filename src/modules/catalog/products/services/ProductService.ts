@@ -27,6 +27,14 @@ export class ProductService {
     return invoke<Product[]>('search_products', { term });
   }
 
+  /**
+   * Sugerencias de búsqueda: solo productos activos, sin acentos ni mayúsculas, con los que
+   * empiezan con el texto primero. Sin `limit` devuelve todas las coincidencias.
+   */
+  static async suggest(term: string, limit?: number): Promise<Product[]> {
+    return invoke<Product[]>('suggest_products', { term, limit });
+  }
+
   static async create(dto: CreateProductDTO): Promise<Product> {
     return invoke<Product>('create_product', { request: dto });
   }

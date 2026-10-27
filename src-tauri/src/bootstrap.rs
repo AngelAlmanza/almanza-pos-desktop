@@ -44,6 +44,7 @@ pub fn run() {
             get_product,
             find_product_by_barcode,
             search_products,
+            suggest_products,
             create_product,
             update_product,
             delete_product,

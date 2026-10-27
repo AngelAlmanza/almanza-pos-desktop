@@ -3,6 +3,7 @@ use crate::models::product::{
     UpdateProductRequest,
 };
 use crate::modules::catalog::products::image::is_valid_image_file_name;
+use crate::modules::catalog::products::matching;
 use crate::shared::error::{AppError, AppResult};
 use std::path::PathBuf;
 
@@ -142,6 +143,21 @@ pub fn search_products(
     term: String,
 ) -> AppResult<Vec<Product>> {
     repository.search(&term)
+}
+
+/// Sugerencias de búsqueda del POS (FR1.2, FR1.3): productos activos cuyo nombre o código
+/// contiene el texto sin acentos ni mayúsculas, con "empieza con" primero. Un texto vacío
+/// tras recortar devuelve una lista vacía; el mínimo de caracteres lo aplica la pantalla.
+pub fn suggest_products(
+    repository: &impl ProductRepository,
+    term: String,
+    limit: Option<usize>,
+) -> AppResult<Vec<Product>> {
+    if term.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let active = repository.find_active()?;
+    Ok(matching::rank(active, &term, limit))
 }
 
 pub fn create_product(
@@ -321,6 +337,158 @@ mod tests {
     fn non_bulk_products_do_not_require_a_convertible_unit() {
         assert!(validate_bulk_configuration(false, "pieza").is_ok());
         assert!(validate_bulk_configuration(false, "kg").is_ok());
+    }
+}
+
+#[cfg(test)]
+mod suggest_tests {
+    use super::*;
+
+    fn product(id: i64, name: &str, active: bool) -> Product {
+        Product {
+            id,
+            name: name.to_string(),
+            description: None,
+            barcode: None,
+            price: 1.0,
+            unit: "pieza".to_string(),
+            is_bulk: false,
+            category_id: None,
+            category_name: None,
+            stock: 3.0,
+            min_stock: 0.0,
+            active,
+            created_at: String::new(),
+            updated_at: String::new(),
+            image_file: None,
+        }
+    }
+
+    /// Repositorio falso: `find_active` devuelve todo lo cargado (como la consulta real,
+    /// que ya filtra `active = 1`), salvo que se pida una falla.
+    struct SuggestRepo {
+        products: Vec<Product>,
+        fail: bool,
+    }
+
+    impl SuggestRepo {
+        fn new(products: Vec<Product>) -> Self {
+            Self {
+                products,
+                fail: false,
+            }
+        }
+    }
+
+    impl ProductRepository for SuggestRepo {
+        fn find_all(&self) -> AppResult<Vec<Product>> {
+            Ok(self.products.clone())
+        }
+        fn find_active(&self) -> AppResult<Vec<Product>> {
+            if self.fail {
+                return Err(AppError::Database("falla simulada".to_string()));
+            }
+            Ok(self.products.clone())
+        }
+        fn find_by_id(&self, _id: i64) -> AppResult<Option<Product>> {
+            unreachable!("suggest_products no relee por id")
+        }
+        fn find_by_barcode(&self, _barcode: &str) -> AppResult<Option<Product>> {
+            unreachable!("suggest_products no busca por código exacto")
+        }
+        fn search(&self, _term: &str) -> AppResult<Vec<Product>> {
+            unreachable!("suggest_products no usa LIKE")
+        }
+        fn create(
+            &self,
+            _request: &CreateProductRequest,
+            _image_file: Option<&str>,
+        ) -> AppResult<Product> {
+            unreachable!()
+        }
+        fn update(
+            &self,
+            _request: &UpdateProductRequest,
+            _image: ImageFileUpdate,
+        ) -> AppResult<Product> {
+            unreachable!()
+        }
+        fn delete(&self, _id: i64) -> AppResult<()> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn returns_only_active_products_that_match_ignoring_accents() {
+        let repo = SuggestRepo::new(vec![
+            product(1, "Jamón", true),
+            product(2, "Jamón viejo", false),
+            product(3, "Queso", true),
+        ]);
+        let found = suggest_products(&repo, "JAMON".to_string(), Some(10)).unwrap();
+        assert_eq!(found.iter().map(|p| p.id).collect::<Vec<_>>(), vec![1]);
+    }
+
+    #[test]
+    fn orders_starts_with_first_and_returns_complete_products() {
+        let repo = SuggestRepo::new(vec![
+            product(1, "Agua de limón", true),
+            product(2, "Limón", true),
+        ]);
+        let found = suggest_products(&repo, "limon".to_string(), None).unwrap();
+        assert_eq!(found[0].id, 2);
+        assert_eq!(found[0].stock, 3.0);
+        assert_eq!(found[1].id, 1);
+    }
+
+    #[test]
+    fn applies_the_limit_of_ten() {
+        let repo = SuggestRepo::new(
+            (0..25)
+                .map(|i| product(i, &format!("Galleta {i:02}"), true))
+                .collect(),
+        );
+        assert_eq!(
+            suggest_products(&repo, "galleta".to_string(), Some(10))
+                .unwrap()
+                .len(),
+            10
+        );
+    }
+
+    #[test]
+    fn limit_zero_returns_empty_and_no_limit_returns_all() {
+        let repo = SuggestRepo::new(
+            (0..25)
+                .map(|i| product(i, &format!("Galleta {i:02}"), true))
+                .collect(),
+        );
+        assert!(suggest_products(&repo, "galleta".to_string(), Some(0))
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            suggest_products(&repo, "galleta".to_string(), None)
+                .unwrap()
+                .len(),
+            25
+        );
+    }
+
+    #[test]
+    fn blank_term_returns_an_empty_list_without_reading_the_repository() {
+        let mut repo = SuggestRepo::new(vec![product(1, "Leche", true)]);
+        repo.fail = true; // si leyera el repositorio, fallaría
+        assert!(suggest_products(&repo, "   ".to_string(), None)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn repository_errors_are_propagated() {
+        let mut repo = SuggestRepo::new(vec![product(1, "Leche", true)]);
+        repo.fail = true;
+        let error = suggest_products(&repo, "leche".to_string(), None).unwrap_err();
+        assert!(error.to_string().contains("falla simulada"));
     }
 }
 

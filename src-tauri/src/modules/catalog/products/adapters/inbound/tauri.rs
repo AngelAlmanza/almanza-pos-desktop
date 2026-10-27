@@ -36,6 +36,16 @@ pub fn search_products(db: State<Database>, term: String) -> AppResult<Vec<Produ
     application::search_products(&SqliteProductRepository::new(&db), term)
 }
 
+/// Sugerencias del POS. `limit` ausente devuelve todas las coincidencias (lo usa la cuadrícula).
+#[tauri::command]
+pub fn suggest_products(
+    db: State<Database>,
+    term: String,
+    limit: Option<usize>,
+) -> AppResult<Vec<Product>> {
+    application::suggest_products(&SqliteProductRepository::new(&db), term, limit)
+}
+
 #[tauri::command]
 pub fn create_product(
     db: State<Database>,
@@ -124,6 +134,32 @@ mod tests {
         // `$APPDATA` ya resuelve a `app_data_dir` (incluye el identificador de la app):
         // repetirlo apunta a una carpeta inexistente y el protocolo responde 403.
         assert_eq!(scope, vec!["$APPDATA/product-images/**"]);
+    }
+
+    /// El frontend envía `{ term, limit }`; con `limit` indefinido, `invoke` serializa `null`
+    /// o la clave falta, y el comando debe leerlo como "sin límite".
+    #[test]
+    fn suggest_limit_is_optional_in_the_ipc_payload() {
+        let absent: Option<usize> = serde_json::from_value(serde_json::Value::Null).unwrap();
+        assert_eq!(absent, None);
+
+        let missing: Option<usize> = serde_json::from_str::<serde_json::Value>("{}")
+            .unwrap()
+            .get("limit")
+            .map(|value| serde_json::from_value(value.clone()).unwrap())
+            .unwrap_or(None);
+        assert_eq!(missing, None);
+    }
+
+    #[test]
+    fn suggest_limit_is_read_when_present_and_rejects_negative_values() {
+        let present: Option<usize> = serde_json::from_str("10").unwrap();
+        assert_eq!(present, Some(10));
+
+        let zero: Option<usize> = serde_json::from_str("0").unwrap();
+        assert_eq!(zero, Some(0));
+
+        assert!(serde_json::from_str::<Option<usize>>("-1").is_err());
     }
 
     #[test]

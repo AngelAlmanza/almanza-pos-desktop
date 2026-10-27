@@ -1,0 +1,18 @@
+{
+  "stage": "code-generation",
+  "unit": "search-suggestions",
+  "version": 1,
+  "writes": [
+    { "path": "src-tauri/src/modules/catalog/products/matching.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/mod.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/application.rs" },
+    { "path": "src-tauri/src/modules/catalog/products/adapters/inbound/tauri.rs" },
+    { "path": "src-tauri/src/bootstrap.rs" },
+    { "path": "src/modules/catalog/products/services/ProductService.ts" },
+    { "path": "src/modules/pos/utils/productSuggestions.ts" },
+    { "path": "src/modules/pos/hooks/useProductSuggestions.ts" },
+    { "path": "src/modules/pos/components/ProductSuggestionList.tsx" },
+    { "path": "src/modules/pos/components/PosSearchBar.tsx" },
+    { "path": "src/__tests__/modules/pos/utils/productSuggestions.test.ts" }
+  ]
+}
