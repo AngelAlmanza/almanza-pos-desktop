@@ -20,10 +20,8 @@ import {
   TableRow,
   Typography
 } from "@mui/material";
-import { useState } from 'react';
-import { usePos } from '@modules/pos/context/PosProvider';
 import type { CartItem } from '@modules/pos/types';
-import { addQuantity, hasSufficientStock, isPositiveQuantity, parseQuantityInput } from '@modules/shared/utils/money';
+import { useCartLineActions } from '@modules/pos/hooks/useCartLineActions';
 import {
   getBaseEquivalentLabel,
   getBasePriceLabel,
@@ -34,8 +32,16 @@ import { usesBulkQuantityInput } from '@modules/shared/utils/unitConversion';
 import { BulkQuantityDialog } from './BulkQuantityDialog';
 
 export const SaleSummaryTable = () => {
-  const { cart, dispatch, setError } = usePos();
-  const [editingBulkItem, setEditingBulkItem] = useState<CartItem | null>(null);
+  const {
+    cart,
+    editingBulkItem,
+    startEditingBulk,
+    confirmBulkEdit,
+    cancelBulkEdit,
+    updateQuantity,
+    changeQuantity: handleQuantityChange,
+    removeLine: removeFromCart,
+  } = useCartLineActions();
 
   const toPresentationData = (item: CartItem): SaleItemPresentationData => ({
     quantity: item.quantity,
@@ -46,57 +52,6 @@ export const SaleSummaryTable = () => {
     unit_price: item.product.price,
     subtotal: item.subtotal,
   });
-
-  const updateQuantity = (index: number, delta: number) => {
-    const item = cart[index];
-    const newQty = addQuantity(item.quantity, delta);
-
-    if (!isPositiveQuantity(newQty)) {
-      dispatch({ type: 'REMOVE_ITEM', payload: { lineKey: item.line_key } });
-      return;
-    }
-
-    if (!hasSufficientStock(item.product.stock, newQty)) {
-      setError(`Stock insuficiente. Disponible: ${item.product.stock}`);
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-
-    dispatch({ type: 'INCREMENT', payload: { lineKey: item.line_key, delta } });
-  };
-
-  const handleQuantityChange = (index: number, rawValue: string) => {
-    const item = cart[index];
-    const qty = parseQuantityInput(rawValue);
-
-    if (qty === null) {
-      // Ignore invalid/incomplete input while the user is typing.
-      return;
-    }
-
-    if (!isPositiveQuantity(qty)) {
-      dispatch({ type: 'REMOVE_ITEM', payload: { lineKey: item.line_key } });
-      return;
-    }
-
-    if (!item.product.is_bulk && !Number.isInteger(qty)) {
-      setError('Los productos por unidad solo aceptan cantidades enteras');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-
-    if (!hasSufficientStock(item.product.stock, qty)) {
-      setError(`Stock insuficiente. Disponible: ${item.product.stock}`);
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-
-    dispatch({ type: 'SET_QUANTITY', payload: { lineKey: item.line_key, quantity: qty } });
-  };
-
-  const removeFromCart = (index: number) => {
-    dispatch({ type: 'REMOVE_ITEM', payload: { lineKey: cart[index].line_key } });
-  };
 
   return (
     <>
@@ -156,7 +111,7 @@ export const SaleSummaryTable = () => {
                         size="small"
                         variant="outlined"
                         endIcon={<Edit sx={{ fontSize: 15 }} />}
-                        onClick={() => setEditingBulkItem(item)}
+                        onClick={() => startEditingBulk(item)}
                         sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
                       >
                         {getPurchaseLabel(presentation)}
@@ -212,16 +167,8 @@ export const SaleSummaryTable = () => {
         editingLineKey={editingBulkItem?.line_key}
         mode="edit"
         initialSelection={editingBulkItem}
-        onConfirm={(selection) => {
-          if (editingBulkItem) {
-            dispatch({
-              type: 'SET_INPUT',
-              payload: { lineKey: editingBulkItem.line_key, selection },
-            });
-          }
-          setEditingBulkItem(null);
-        }}
-        onCancel={() => setEditingBulkItem(null)}
+        onConfirm={confirmBulkEdit}
+        onCancel={cancelBulkEdit}
       />
     </>
   )

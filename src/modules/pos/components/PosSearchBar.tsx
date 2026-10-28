@@ -1,6 +1,6 @@
 import { QrCodeScanner, Search } from "@mui/icons-material";
 import { Box, Card, CardContent, Chip, ClickAwayListener, Dialog, DialogContent, DialogTitle, IconButton, InputAdornment, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
-import { KeyboardEvent, SubmitEvent, useEffect, useId, useRef, useState } from "react";
+import { KeyboardEvent, Ref, SubmitEvent, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { getRequestedProductQuantityAfterAdd, usePos } from '@modules/pos/context/PosProvider';
 import type { Product } from '@modules/catalog/products/types';
 import type { SaleQuantitySelection } from '@modules/pos/types';
@@ -9,18 +9,45 @@ import { hasSufficientStock } from '@modules/shared/utils/money';
 import { buildQuantitySelection, usesBulkQuantityInput } from '@modules/shared/utils/unitConversion';
 import { useProductSuggestions } from '@modules/pos/hooks/useProductSuggestions';
 import { decideEnter, getSuggestionOptionId, isOutOfStock, nextHighlight } from '@modules/pos/utils/productSuggestions';
+import type { PosViewMode } from '@modules/pos/utils/viewMode';
 import { BulkQuantityDialog } from "./BulkQuantityDialog";
 import { ProductSuggestionList } from "./ProductSuggestionList";
+import { ViewModeToggle } from "./ViewModeToggle";
 
 /** Los errores del POS se limpian solos a los 3 s. */
 const POS_ERROR_MS = 3000;
 
+/** Origen de una selección: la lista de sugerencias o una tarjeta de la cuadrícula (U3). */
+type SelectionOrigin = 'suggestion' | 'card';
+
+/** Manejador que la barra expone a la cuadrícula. */
+export interface PosSearchBarHandle {
+  /** Ejecuta el flujo de selección de la barra (relectura, stock, granel, cantidad 1). */
+  addProduct: (product: Product) => void;
+  focus: () => void;
+  clear: () => void;
+}
+
 interface PosSearchBarProps {
   /** En `false` no se consulta ni se muestra la lista (U3 lo usa en vista de cuadrícula). */
   suggestionsEnabled?: boolean;
+  viewMode: PosViewMode;
+  onViewModeChange: (mode: PosViewMode) => void;
+  /** Se llama en cada cambio de texto, también al borrarlo. */
+  onTermChange?: (term: string) => void;
+  /** Una tarjeta apuntaba a un producto que ya no está disponible: la cuadrícula se recarga. */
+  onProductUnavailable?: () => void;
+  ref?: Ref<PosSearchBarHandle>;
 }
 
-export const PosSearchBar = ({ suggestionsEnabled = true }: PosSearchBarProps) => {
+export const PosSearchBar = ({
+  suggestionsEnabled = true,
+  viewMode,
+  onViewModeChange,
+  onTermChange,
+  onProductUnavailable,
+  ref,
+}: PosSearchBarProps) => {
   const { cart, error, dispatch, setError } = usePos();
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
@@ -105,27 +132,56 @@ export const PosSearchBar = ({ suggestionsEnabled = true }: PosSearchBarProps) =
   };
 
   // W3: relee el producto por id para validar con el stock real del momento.
-  const handleSuggestionSelected = async (suggestion: Product) => {
+  // Con origen `card` (U3) el texto de la barra se conserva para no perder el filtro, y el
+  // foco vuelve siempre a la barra: un escaneo justo después cae en ella (FR2.12, NFR3).
+  const handleSuggestionSelected = async (suggestion: Product, origin: SelectionOrigin = 'suggestion') => {
     if (selectingRef.current) return;
     selectingRef.current = true;
     closeList();
+    const notFound = () => {
+      showError('Producto no encontrado');
+      barcodeInputRef.current?.focus();
+      if (origin === 'card') onProductUnavailable?.();
+    };
     try {
       const product = await ProductService.getById(suggestion.id);
       if (!product.active) {
-        showError('Producto no encontrado');
+        notFound();
         return;
       }
       if (isOutOfStock(product)) {
         showError(`Stock insuficiente. Disponible: ${Math.max(product.stock, 0)}`);
+        if (origin === 'card') barcodeInputRef.current?.focus();
         return;
       }
-      selectionTextRef.current = barcodeInputValueRef.current;
+      selectionTextRef.current = origin === 'suggestion' ? barcodeInputValueRef.current : null;
       handleProductSelected(product);
     } catch {
-      showError('Producto no encontrado');
+      notFound();
     } finally {
       selectingRef.current = false;
     }
+  };
+
+  useImperativeHandle(ref, () => ({
+    addProduct: (product: Product) => { void handleSuggestionSelected(product, 'card'); },
+    focus: () => barcodeInputRef.current?.focus(),
+    clear: () => {
+      setBarcodeInput('');
+      barcodeInputRef.current?.focus();
+    },
+  }));
+
+  const onTermChangeRef = useRef(onTermChange);
+  onTermChangeRef.current = onTermChange;
+  // Publica cada cambio del texto, incluidos los borrados por la propia barra.
+  useEffect(() => {
+    onTermChangeRef.current?.(barcodeInput);
+  }, [barcodeInput]);
+
+  const handleViewModeChange = (mode: PosViewMode) => {
+    onViewModeChange(mode);
+    barcodeInputRef.current?.focus();
   };
 
   // La consulta de sugerencias falló: se avisa con el Alert del POS; Enter sigue funcionando.
@@ -175,10 +231,12 @@ export const PosSearchBar = ({ suggestionsEnabled = true }: PosSearchBarProps) =
         } else {
           setError('Producto no encontrado');
           setTimeout(() => setError(''), 3000);
+          barcodeInputRef.current?.focus();
         }
       } catch {
         setError('Producto no encontrado');
         setTimeout(() => setError(''), 3000);
+        barcodeInputRef.current?.focus();
       }
     } finally {
       setBarcodeInput('');
@@ -228,9 +286,9 @@ export const PosSearchBar = ({ suggestionsEnabled = true }: PosSearchBarProps) =
     <>
       {/* Barcode Scanner Input */}
       <Card sx={{ mb: 2 }}>
-        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 }, display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <ClickAwayListener onClickAway={() => { if (listOpen) closeList(); }}>
-            <Box>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
               <form onSubmit={handleBarcodeSubmit}>
                 <TextField
                   fullWidth
@@ -303,6 +361,7 @@ export const PosSearchBar = ({ suggestionsEnabled = true }: PosSearchBarProps) =
               </Box>
             </Box>
           </ClickAwayListener>
+          <ViewModeToggle value={viewMode} onChange={handleViewModeChange} />
         </CardContent>
       </Card>
 
@@ -372,6 +431,7 @@ export const PosSearchBar = ({ suggestionsEnabled = true }: PosSearchBarProps) =
           // Cancelar no agrega nada: la barra conserva el texto.
           selectionTextRef.current = null;
           setPendingProduct(null);
+          barcodeInputRef.current?.focus();
         }}
       />
     </>

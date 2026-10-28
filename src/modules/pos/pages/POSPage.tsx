@@ -18,11 +18,17 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { CompactCart } from '@modules/pos/components/CompactCart';
 import { PosSearchBar } from '@modules/pos/components/PosSearchBar';
+import type { PosSearchBarHandle } from '@modules/pos/components/PosSearchBar';
+import { ProductGrid } from '@modules/pos/components/ProductGrid';
 import { SaleSummaryTable } from '@modules/pos/components/SaleSummaryTable';
 import { useAuth } from '@modules/auth/context/AuthContext';
 import { usePos } from '@modules/pos/context/PosProvider';
+import { readViewMode, saveViewMode } from '@modules/pos/utils/viewMode';
+import type { PosViewMode } from '@modules/pos/utils/viewMode';
+import type { Product } from '@modules/catalog/products/types';
 import type { Customer } from '@modules/customers/types';
 import type { Sale } from '@modules/sales/types';
 import { CustomerService } from '@modules/customers/services/CustomerService';
@@ -59,6 +65,25 @@ export function POSPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [paymentMode, setPaymentMode] = useState<'paid' | 'credit'>('paid');
+
+  // Vista del POS (FR3.1): se lee una vez por visita; guardar nunca bloquea el cambio (FR3.5).
+  const [viewMode, setViewMode] = useState<PosViewMode>(() => readViewMode(user?.id));
+  const [searchTerm, setSearchTerm] = useState('');
+  // Sube tras cada venta cobrada o producto no disponible para que la cuadrícula recargue.
+  const [salesVersion, setSalesVersion] = useState(0);
+  const searchBarRef = useRef<PosSearchBarHandle>(null);
+
+  const handleViewModeChange = (mode: PosViewMode) => {
+    setViewMode(mode);
+    if (user) saveViewMode(user.id, mode);
+  };
+  const bumpSalesVersion = useCallback(() => setSalesVersion((version) => version + 1), []);
+  const handleProductSelect = useCallback((product: Product) => {
+    searchBarRef.current?.addProduct(product);
+  }, []);
+  const handleClearSearch = useCallback(() => searchBarRef.current?.clear(), []);
+  const handleFocusSearch = useCallback(() => searchBarRef.current?.focus(), []);
+  const isGridView = viewMode === 'grid';
 
   const exchangeRate = useMemo(
     () => cashRegisterSession?.exchange_rate ?? null,
@@ -172,6 +197,7 @@ export function POSPage() {
       });
 
       setLastSale(sale);
+      bumpSalesVersion();
       dispatch({ type: 'CLEAR_CART' });
       resetPaymentForm();
       setShowPayment(false);
@@ -268,15 +294,50 @@ export function POSPage() {
             {warning}
           </Alert>
         )}
-        <PosSearchBar />
-        <SaleSummaryTable />
+        <PosSearchBar
+          ref={searchBarRef}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+          onTermChange={setSearchTerm}
+          onProductUnavailable={bumpSalesVersion}
+          suggestionsEnabled={!isGridView}
+        />
+        {isGridView ? (
+          <ProductGrid
+            term={searchTerm}
+            salesVersion={salesVersion}
+            onProductSelect={handleProductSelect}
+            onClearSearch={handleClearSearch}
+          />
+        ) : (
+          <SaleSummaryTable />
+        )}
       </Box>
 
-      {/* Right Panel - Receipt-style summary */}
+      {/* Right Panel - Receipt-style summary (en cuadrícula, con el carrito compacto encima) */}
+      <Box
+        sx={{
+          width: isGridView ? 360 : 300,
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1.5,
+          minHeight: 0,
+        }}
+      >
+      {isGridView && (
+        <Card sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <CardContent
+            sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 2, '&:last-child': { pb: 2 } }}
+          >
+            <CompactCart onEmptyFocus={handleFocusSearch} />
+          </CardContent>
+        </Card>
+      )}
       <Card
         sx={{
-          width: 300,
-          flexShrink: 0,
+          width: '100%',
+          flex: isGridView ? '0 0 auto' : 1,
           display: 'flex',
           flexDirection: 'column',
           backgroundColor: '#faf9f6',
@@ -397,6 +458,7 @@ export function POSPage() {
           </Box>
         </CardContent>
       </Card>
+      </Box>
 
       {/* Payment Dialog */}
       <Dialog

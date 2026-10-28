@@ -1,0 +1,21 @@
+{
+  "stage": "code-generation",
+  "unit": "pos-grid-view",
+  "version": 1,
+  "writes": [
+    { "path": "src/modules/pos/utils/viewMode.ts" },
+    { "path": "src/modules/pos/utils/productGrid.ts" },
+    { "path": "src/modules/pos/hooks/useCartLineActions.ts" },
+    { "path": "src/modules/pos/hooks/useProductGrid.ts" },
+    { "path": "src/modules/pos/components/ProductCard.tsx" },
+    { "path": "src/modules/pos/components/ProductGrid.tsx" },
+    { "path": "src/modules/pos/components/CompactCart.tsx" },
+    { "path": "src/modules/pos/components/ViewModeToggle.tsx" },
+    { "path": "src/modules/pos/components/SaleSummaryTable.tsx" },
+    { "path": "src/modules/pos/components/PosSearchBar.tsx" },
+    { "path": "src/modules/pos/pages/POSPage.tsx" },
+    { "path": "src/modules/auth/services/AuthService.ts" },
+    { "path": "src/__tests__/modules/pos/utils/viewMode.test.ts" },
+    { "path": "src/__tests__/modules/pos/utils/productGrid.test.ts" }
+  ]
+}

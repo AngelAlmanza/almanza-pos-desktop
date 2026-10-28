@@ -1,0 +1,20 @@
+{
+  "stage": "code-generation",
+  "unit": "pos-grid-view",
+  "upstream_ids": ["AC2.1", "AC2.2", "AC2.3", "AC2.4", "AC2.5", "AC2.6", "AC2.7", "AC2.8", "AC2.9", "AC3.1", "AC3.2", "AC3.3", "AC3.4"],
+  "coverage": [
+    { "id": "AC2.1", "status": "OK", "target": "src/modules/pos/pages/POSPage.tsx" },
+    { "id": "AC2.2", "status": "OK", "target": "src/__tests__/modules/pos/utils/productGrid.test.ts" },
+    { "id": "AC2.3", "status": "OK", "target": "src/__tests__/modules/pos/utils/productGrid.test.ts" },
+    { "id": "AC2.4", "status": "OK", "target": "src/modules/pos/hooks/useProductGrid.ts" },
+    { "id": "AC2.5", "status": "OK", "target": "src/modules/pos/components/PosSearchBar.tsx" },
+    { "id": "AC2.6", "status": "OK", "target": "src/modules/pos/components/ProductCard.tsx" },
+    { "id": "AC2.7", "status": "OK", "target": "src/modules/pos/components/ProductCard.tsx" },
+    { "id": "AC2.8", "status": "OK", "target": "src/modules/pos/components/ProductGrid.tsx" },
+    { "id": "AC2.9", "status": "OK", "target": "src/__tests__/modules/pos/utils/productGrid.test.ts" },
+    { "id": "AC3.1", "status": "OK", "target": "src/__tests__/modules/pos/utils/viewMode.test.ts" },
+    { "id": "AC3.2", "status": "OK", "target": "src/modules/auth/services/AuthService.ts" },
+    { "id": "AC3.3", "status": "OK", "target": "src/__tests__/modules/pos/utils/viewMode.test.ts" },
+    { "id": "AC3.4", "status": "OK", "target": "src/__tests__/modules/pos/utils/viewMode.test.ts" }
+  ]
+}

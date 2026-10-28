@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { LoginDTO, LoginResponse } from '@modules/auth/types';
 import type { UserRole } from '@modules/shared/types/base';
 import type { User } from '@modules/shared/types/users';
+import { clearViewMode } from '@modules/pos/utils/viewMode';
 
 const SESSION_KEY = 'pos_session';
 
@@ -20,6 +21,10 @@ export class AuthService {
 
   static logout(): void {
     localStorage.removeItem(SESSION_KEY);
+    // La preferencia de vista del POS vive solo durante la sesión de login (FR3.4). Va aquí
+    // y no en AuthContext.logout porque también cubre la sesión caducada (refreshUser).
+    // clearViewMode no lanza: un fallo de almacenamiento no impide cerrar sesión.
+    clearViewMode();
   }
 
   static getSession(): LoginResponse | null {
