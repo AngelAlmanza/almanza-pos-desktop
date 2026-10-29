@@ -1,704 +1,402 @@
-import { Add, Delete, Edit } from "@mui/icons-material";
+import { Add } from '@mui/icons-material';
 import {
   Alert,
   Box,
   Button,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControlLabel,
-  IconButton,
-  MenuItem,
-  Paper,
+  Snackbar,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
+  Tab,
+  Tabs,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
-} from "@mui/material";
-import { useEffect, useReducer, useState } from "react";
-import { ConfirmModal } from '@modules/shared/components/ConfirmModal';
-import { ProductImageField } from '@modules/catalog/products/components/ProductImageField';
+} from '@mui/material';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '@modules/auth/context/AuthContext';
+import { CategoryFormDialog } from '@modules/catalog/products/components/CategoryFormDialog';
+import { CategorySidebar } from '@modules/catalog/products/components/CategorySidebar';
+import { ColumnVisibilityMenu } from '@modules/catalog/products/components/ColumnVisibilityMenu';
+import { ProductFormDialog } from '@modules/catalog/products/components/ProductFormDialog';
 import {
-  initialProductImageFieldState,
-  productImageFieldReducer,
-  toImageChange,
-} from '@modules/catalog/products/utils/productImageField';
-import { UNITS } from '@modules/catalog/products/constants/Units';
-import type { CreateProductDTO, Product, UpdateProductDTO } from '@modules/catalog/products/types';
+  ProductSidePanel,
+  type PanelSection,
+} from '@modules/catalog/products/components/ProductSidePanel';
+import { ProductTable, type ProductTableView } from '@modules/catalog/products/components/ProductTable';
+import { StockHistoryTab } from '@modules/catalog/products/components/StockHistoryTab';
+import { StockSummaryCards } from '@modules/catalog/products/components/StockSummaryCards';
 import type { Category } from '@modules/catalog/categories/types';
 import { CategoryService } from '@modules/catalog/categories/services/CategoryService';
 import { ProductService } from '@modules/catalog/products/services/ProductService';
-import type { ProductUnit } from '@modules/shared/types/base';
-import { cleanError } from '@modules/shared/utils/CleanError';
-import { supportsBulkQuantityInput } from '@modules/shared/utils/unitConversion';
+import type {
+  CategoryFilter,
+  Product,
+  ProductColumnKey,
+  ProductFilters,
+  StockStatusFilter,
+} from '@modules/catalog/products/types';
+import { describeCategoryDeletion } from '@modules/catalog/products/utils/categoryDeletion';
+import { ALL_COLUMN_KEYS } from '@modules/catalog/products/utils/columnVisibility';
+import { getProductPermissions } from '@modules/catalog/products/utils/productPermissions';
+import {
+  compareProductsByName,
+  countByCategory,
+  filterProducts,
+  summarizeStock,
+} from '@modules/catalog/products/utils/stockStatus';
+import { ConfirmModal } from '@modules/shared/components/ConfirmModal';
+
+interface PanelState {
+  product: Product;
+  section: PanelSection;
+}
+
+const DEFAULT_FILTERS: ProductFilters = { category: 'all', status: 'all', showInactive: false };
 
 export function ProductsPage() {
+  const { user, isAdmin } = useAuth();
+  const permissions = useMemo(() => getProductPermissions(isAdmin), [isAdmin]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab: 'products' | 'history' =
+    permissions.canViewHistory && searchParams.get('tab') === 'history' ? 'history' : 'products';
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [open, setOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [filters, setFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
+  const [visibleColumns, setVisibleColumns] = useState<ProductColumnKey[]>(ALL_COLUMN_KEYS);
+
+  const [panel, setPanel] = useState<PanelState | null>(null);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
-  const [error, setError] = useState("");
-  const [catOpen, setCatOpen] = useState(false);
-  const [catName, setCatName] = useState("");
-  const [catDesc, setCatDesc] = useState("");
-  const [dialogError, setDialogError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [imageState, dispatchImage] = useReducer(
-    productImageFieldReducer,
-    null,
-    () => initialProductImageFieldState(null),
-  );
+  const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
+  const [categoryDialog, setCategoryDialog] = useState<{
+    open: boolean;
+    editing: Category | null;
+    forProduct: boolean;
+  }>({ open: false, editing: null, forProduct: false });
 
-  const [form, setForm] = useState<{
-    name: string;
-    description: string;
-    barcode: string;
-    price: string;
-    unit: ProductUnit;
-    is_bulk: boolean;
-    category_id: string;
-    stock: string;
-    min_stock: string;
-  }>({
-    name: "",
-    description: "",
-    barcode: "",
-    price: "",
-    unit: "pieza",
-    is_bulk: false,
-    category_id: "",
-    stock: "",
-    min_stock: "",
-  });
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
     try {
-      const [prods, cats] = await Promise.all([
-        ProductService.getAll(),
-        CategoryService.getAll(),
-      ]);
+      const [prods, cats] = await Promise.all([ProductService.getAll(), CategoryService.getAll()]);
       setProducts(prods);
       setCategories(cats);
     } catch (err) {
-      setError(String(err));
+      setLoadError(String(err));
+    } finally {
+      setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const visibleProducts = useMemo(
+    () => filterProducts(products, filters).sort(compareProductsByName),
+    [products, filters],
+  );
+  const summary = useMemo(() => (loading ? null : summarizeStock(products)), [products, loading]);
+  const counts = useMemo(
+    () => countByCategory(products, filters.showInactive),
+    [products, filters.showInactive],
+  );
+
+  let view: ProductTableView = 'rows';
+  if (loading) view = 'loading';
+  else if (loadError) view = 'error';
+  else if (products.length === 0) view = 'empty';
+  else if (visibleProducts.length === 0) view = 'no-results';
+
+  const filtersActive =
+    filters.category !== 'all' || filters.status !== 'all' || filters.showInactive;
+
+  const setTab = (next: 'products' | 'history') => {
+    setSearchParams(next === 'history' ? { tab: 'history' } : {}, { replace: true });
   };
 
-  const resetForm = () => {
-    setForm({
-      name: "",
-      description: "",
-      barcode: "",
-      price: "",
-      unit: "pieza",
-      is_bulk: false,
-      category_id: "",
-      stock: "",
-      min_stock: "",
-    });
+  // ---- Panel lateral ----
+  const openPanel = (product: Product, section: PanelSection) => setPanel({ product, section });
+
+  const handleAdjusted = (updated: Product) => {
+    setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setHistoryRefresh((n) => n + 1);
+  };
+
+  const handleOpenFromHistory = (productId: number) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    setTab('products');
+    openPanel(product, 'history');
+  };
+
+  // ---- Productos ----
+  const handleNewProduct = () => {
     setEditing(null);
+    setNewCategoryId(null);
+    setProductDialogOpen(true);
   };
 
-  const handleOpen = (product?: Product) => {
-    setDialogError("");
-    dispatchImage({ type: "init", savedFile: product?.image_file ?? null });
-    if (product) {
-      setEditing(product);
-      setForm({
-        name: product.name,
-        description: product.description || "",
-        barcode: product.barcode || "",
-        price: String(product.price),
-        unit: product.unit,
-        is_bulk: product.is_bulk,
-        category_id: product.category_id ? String(product.category_id) : "",
-        stock: String(product.stock),
-        min_stock: String(product.min_stock),
-      });
-    } else {
-      resetForm();
-    }
-    setOpen(true);
+  const handleEditProduct = (product: Product) => {
+    setEditing(product);
+    setNewCategoryId(null);
+    setProductDialogOpen(true);
   };
 
-  // Cancelar descarta el cambio de imagen pendiente (W5, BR5.2).
-  const handleCloseDialog = () => {
-    if (saving) return;
-    dispatchImage({ type: "cancel" });
-    setDialogError("");
-    setOpen(false);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setDialogError("");
-    try {
-      const image = toImageChange(imageState);
-      if (editing) {
-        const dto: UpdateProductDTO = {
-          id: editing.id,
-          name: form.name || undefined,
-          description: form.description || undefined,
-          barcode: form.barcode || undefined,
-          price: form.price ? parseFloat(form.price) : undefined,
-          unit: form.unit || undefined,
-          is_bulk: form.is_bulk,
-          category_id: form.category_id
-            ? parseInt(form.category_id)
-            : undefined,
-          min_stock: form.min_stock ? parseFloat(form.min_stock) : undefined,
-          image,
-        };
-        await ProductService.update(dto);
-      } else {
-        const dto: CreateProductDTO = {
-          name: form.name,
-          description: form.description || undefined,
-          barcode: form.barcode || undefined,
-          price: parseFloat(form.price),
-          unit: form.unit,
-          is_bulk: form.is_bulk,
-          category_id: form.category_id
-            ? parseInt(form.category_id)
-            : undefined,
-          stock: form.stock ? parseFloat(form.stock) : 0,
-          min_stock: form.min_stock ? parseFloat(form.min_stock) : 0,
-          image,
-        };
-        await ProductService.create(dto);
-      }
-      setOpen(false);
-      resetForm();
-      loadData();
-    } catch (err) {
-      // El diálogo sigue abierto y conserva el cambio de imagen pendiente.
-      setDialogError(String(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = (id: number) => {
-    setConfirmOpen(true);
-    setConfirmId(id);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!confirmId) return;
-    try {
-      await ProductService.delete(confirmId);
-      loadData();
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setConfirmOpen(false);
-      setConfirmId(null);
-      cleanError(setError);
-    }
-  };
-
-  const handleCloseConfirm = () => {
-    setConfirmOpen(false);
-    setConfirmId(null);
+  const handleProductSaved = () => {
+    setProductDialogOpen(false);
+    setEditing(null);
+    void loadData();
   };
 
   const handleToggleActive = async (product: Product) => {
     try {
       await ProductService.update({ id: product.id, active: !product.active });
-      loadData();
+      await loadData();
     } catch (err) {
-      setError(String(err));
-    } finally {
-      cleanError(setError);
+      setNotice(String(err));
     }
   };
 
-  const handleAddCategory = async () => {
+  const handleConfirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    const target = productToDelete;
+    setProductToDelete(null);
     try {
-      await CategoryService.create({
-        name: catName,
-        description: catDesc || undefined,
-      });
-      setCatOpen(false);
-      setCatName("");
-      setCatDesc("");
-      loadData();
+      await ProductService.delete(target.id);
+      await loadData();
     } catch (err) {
-      setError(String(err));
-    } finally {
-      cleanError(setError);
+      setNotice(`${String(err)} Si ya no lo vendes, puedes desactivarlo en su lugar.`);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // ---- Categorías ----
+  const handleCategorySaved = async (category: Category) => {
+    const forProduct = categoryDialog.forProduct;
+    setCategoryDialog({ open: false, editing: null, forProduct: false });
+    await loadData();
+    if (forProduct) setNewCategoryId(category.id);
+  };
 
-  const hasValidBulkUnit = !form.is_bulk || supportsBulkQuantityInput(form.unit);
+  const handleConfirmDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    const target = categoryToDelete;
+    setCategoryToDelete(null);
+    try {
+      await CategoryService.delete(target.id);
+      if (filters.category === target.id) setFilters((prev) => ({ ...prev, category: 'all' }));
+      await loadData();
+    } catch (err) {
+      setNotice(String(err));
+    }
+  };
+
+  const productsInCategory = (categoryId: number): number =>
+    products.filter((p) => p.category_id === categoryId).length;
+
+  const handleToggleStatus = (status: 'low' | 'out') => {
+    setFilters((prev) => ({ ...prev, status: prev.status === status ? 'all' : status }));
+  };
 
   return (
     <Box>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 3,
-        }}
-      >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h5">Productos</Typography>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => setCatOpen(true)}
-          >
-            + Categoría
-          </Button>
+        {permissions.canManageProducts && tab === 'products' && (
           <Button
             variant="contained"
             size="small"
             startIcon={<Add fontSize="small" />}
-            onClick={() => handleOpen()}
+            onClick={handleNewProduct}
+            data-testid="new-product"
           >
-            Nuevo Producto
+            Nuevo producto
           </Button>
-        </Box>
+        )}
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
-          {error}
-        </Alert>
+      {permissions.canViewHistory && (
+        <Tabs value={tab} onChange={(_, value: 'products' | 'history') => setTab(value)} sx={{ mb: 2 }}>
+          <Tab value="products" label="Productos" data-testid="tab-products" />
+          <Tab value="history" label="Historial de stock" data-testid="tab-history" />
+        </Tabs>
       )}
 
-      <TableContainer
-        component={Paper}
-        elevation={0}
-        sx={{ border: "1px solid rgba(26,32,53,0.10)" }}
-      >
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Nombre</TableCell>
-              <TableCell>Código</TableCell>
-              <TableCell>Categoría</TableCell>
-              <TableCell align="right">Precio</TableCell>
-              <TableCell>Unidad</TableCell>
-              <TableCell align="right">Stock</TableCell>
-              <TableCell>Estado</TableCell>
-              <TableCell align="center">Acciones</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {products.map((product) => (
-              <TableRow key={product.id} hover>
-                <TableCell>
-                  <Typography variant="body2" fontWeight={600}>
-                    {product.name}
-                  </Typography>
-                  {product.description && (
-                    <Typography variant="caption" color="text.secondary">
-                      {product.description}
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell
-                  sx={{
-                    color: "text.secondary",
-                    fontSize: "0.8125rem",
-                    fontFamily: "monospace",
-                  }}
-                >
-                  {product.barcode || "—"}
-                </TableCell>
-                <TableCell sx={{ color: "text.secondary" }}>
-                  {product.category_name || "—"}
-                </TableCell>
-                <TableCell
-                  align="right"
-                  sx={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
-                >
-                  ${product.price.toFixed(2)}
-                </TableCell>
-                <TableCell
-                  sx={{ color: "text.secondary", fontSize: "0.8125rem" }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                    <Chip
-                      label={product.unit.toLocaleUpperCase()}
-                      size="small"
-                      color="secondary"
-                      variant="outlined"
-                      sx={{ height: 22, fontSize: "0.6875rem" }}
-                    />
-                    {product.is_bulk && (
-                      <Chip
-                        label="A granel"
-                        size="small"
-                        color="primary"
-                        variant="outlined"
-                        sx={{ height: 22, fontSize: "0.6875rem" }}
-                      />
-                    )}
-                  </Box>
-                </TableCell>
-                <TableCell align="right">
-                  <Chip
-                    label={product.stock}
-                    size="small"
-                    sx={
-                      product.stock <= product.min_stock
-                        ? {
-                            backgroundColor: "rgba(185,28,28,0.10)",
-                            color: "error.dark",
-                            fontWeight: 600,
-                            fontVariantNumeric: "tabular-nums",
-                          }
-                        : {
-                            backgroundColor: "rgba(26,32,53,0.07)",
-                            color: "text.secondary",
-                            fontVariantNumeric: "tabular-nums",
-                          }
-                    }
-                  />
-                </TableCell>
-                <TableCell>
-                  <Switch
-                    size="small"
-                    checked={product.active}
-                    onChange={() => handleToggleActive(product)}
-                  />
-                </TableCell>
-                <TableCell align="center" sx={{ p: 0.5 }}>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleOpen(product)}
-                    sx={{ color: "text.secondary" }}
-                  >
-                    <Edit sx={{ fontSize: 16 }} />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleDelete(product.id)}
-                  >
-                    <Delete sx={{ fontSize: 16 }} />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-            {products.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={8}
-                  align="center"
-                  sx={{ py: 4, color: "text.secondary" }}
-                >
-                  No hay productos registrados
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      {tab === 'history' && (
+        <StockHistoryTab refreshKey={historyRefresh} onOpenProduct={handleOpenFromHistory} />
+      )}
 
-      {/* Product Dialog */}
-      <Dialog
-        open={open}
-        onClose={handleCloseDialog}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          {editing ? "Editar Producto" : "Nuevo Producto"}
-        </DialogTitle>
-        <DialogContent>
-          {dialogError && (
-            <Alert
-              severity="error"
-              sx={{ mb: 1.5 }}
-              onClose={() => setDialogError("")}
-              data-testid="product-dialog-error"
+      {tab === 'products' && (
+        <>
+          <StockSummaryCards
+            summary={summary}
+            statusFilter={filters.status}
+            onToggleStatus={handleToggleStatus}
+          />
+
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}
+          >
+            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1 }}>
+            <Typography
+              id="stock-filter-label"
+              variant="body2"
+              sx={{ whiteSpace: 'nowrap', color: 'text.secondary' }}
             >
-              {dialogError}
-            </Alert>
-          )}
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: { xs: "column", md: "row" },
-              gap: 2.5,
-              mt: 0.5,
-            }}
-          >
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 1.5,
-              flex: 1,
-              minWidth: 0,
-            }}
-          >
-            <TextField
-              label="Nombre"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-              fullWidth
+              Estado de stock:
+            </Typography>
+            <ToggleButtonGroup
+              exclusive
               size="small"
-            />
-            <TextField
-              label="Descripción"
-              value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
-              fullWidth
-              size="small"
-              multiline
-              rows={2}
-            />
-            <TextField
-              label="Código de barras"
-              value={form.barcode}
-              onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-              fullWidth
-              size="small"
-            />
-            <Box sx={{ display: "flex", gap: 1.5 }}>
-              <TextField
-                label="Precio"
-                type="number"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-                required
-                sx={{ flex: 1 }}
-                size="small"
-                slotProps={{
-                  htmlInput: {
-                    step: "0.01",
-                    min: "0",
-                  },
-                }}
-              />
-              <TextField
-                select
-                label="Unidad"
-                value={form.unit}
-                onChange={(e) =>
-                  setForm({ ...form, unit: e.target.value as ProductUnit })
-                }
-                sx={{ flex: 1 }}
-                size="small"
-              >
-                {UNITS.map((u) => (
-                  <MenuItem key={u} value={u}>
-                    {u}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Box>
-            <Box
-              sx={{
-                px: 1.5,
-                py: 1,
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1.5,
+              aria-labelledby="stock-filter-label"
+              value={filters.status}
+              onChange={(_, value: StockStatusFilter | null) => {
+                if (value !== null) setFilters((prev) => ({ ...prev, status: value }));
               }}
             >
-              <FormControlLabel
-                sx={{ m: 0, alignItems: "flex-start" }}
-                control={
-                  <Switch
-                    size="small"
-                    checked={form.is_bulk}
-                    onChange={(e) =>
-                      setForm({ ...form, is_bulk: e.target.checked })
-                    }
-                  />
-                }
-                label={
-                  <Box sx={{ ml: 0.5 }}>
-                    <Typography variant="body2" fontWeight={600}>
-                      Producto a granel
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Permite capturar la venta por {form.unit}, subunidad o monto.
-                    </Typography>
-                  </Box>
-                }
-              />
+              <ToggleButton value="all" data-testid="filter-status-all" sx={{ textTransform: 'none' }}>
+                Todos
+              </ToggleButton>
+              <ToggleButton value="normal" data-testid="filter-status-normal" sx={{ textTransform: 'none' }}>
+                Normal
+              </ToggleButton>
+              <ToggleButton value="low" data-testid="filter-status-low" sx={{ textTransform: 'none' }}>
+                Bajo
+              </ToggleButton>
+              <ToggleButton value="out" data-testid="filter-status-out" sx={{ textTransform: 'none' }}>
+                Agotado
+              </ToggleButton>
+            </ToggleButtonGroup>
             </Box>
-            {form.is_bulk && !hasValidBulkUnit && (
-              <Alert severity="warning">
-                Los productos a granel deben usar kg, litro o metro como unidad base.
-              </Alert>
-            )}
-            <TextField
-              select
-              label="Categoría"
-              value={form.category_id}
-              onChange={(e) =>
-                setForm({ ...form, category_id: e.target.value })
+            <ColumnVisibilityMenu visible={visibleColumns} onChange={setVisibleColumns} />
+            <FormControlLabel
+              sx={{ m: 0 }}
+              control={
+                <Switch
+                  size="small"
+                  checked={filters.showInactive}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, showInactive: e.target.checked }))}
+                  slotProps={{ input: { 'data-testid': 'filter-inactive' } as object }}
+                />
               }
-              fullWidth
-              size="small"
-            >
-              <MenuItem value="">Sin categoría</MenuItem>
-              {categories.map((cat) => (
-                <MenuItem key={cat.id} value={String(cat.id)}>
-                  {cat.name}
-                </MenuItem>
-              ))}
-            </TextField>
-            {!editing && (
-              <Box sx={{ display: "flex", gap: 1.5 }}>
-                <TextField
-                  label="Stock inicial"
-                  type="number"
-                  value={form.stock}
-                  onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                  sx={{ flex: 1 }}
-                  size="small"
-                  slotProps={{
-                    htmlInput: {
-                      step: form.is_bulk ? "0.001" : "1",
-                      min: "0",
-                    },
-                  }}
-                />
-                <TextField
-                  label="Stock mínimo"
-                  type="number"
-                  value={form.min_stock}
-                  onChange={(e) =>
-                    setForm({ ...form, min_stock: e.target.value })
-                  }
-                  sx={{ flex: 1 }}
-                  size="small"
-                  slotProps={{
-                    htmlInput: {
-                      step: form.is_bulk ? "0.001" : "1",
-                      min: "0",
-                    },
-                  }}
-                />
-              </Box>
-            )}
-            {editing && (
-              <TextField
-                label="Stock mínimo"
-                type="number"
-                value={form.min_stock}
-                onChange={(e) =>
-                  setForm({ ...form, min_stock: e.target.value })
-                }
-                fullWidth
-                size="small"
-                slotProps={{
-                  htmlInput: {
-                    step: form.is_bulk ? "0.001" : "1",
-                    min: "0",
-                  },
-                }}
-              />
-            )}
-          </Box>
-          <Box sx={{ width: { xs: "100%", md: 240 }, flexShrink: 0 }}>
-            <ProductImageField
-              state={imageState}
-              dispatch={dispatchImage}
-              saving={saving}
+              label="Mostrar inactivos"
             />
           </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button
-            onClick={handleCloseDialog}
-            color="inherit"
-            disabled={saving}
-            data-testid="product-cancel"
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={
-              saving || !form.name || !form.price || !hasValidBulkUnit
-            }
-            data-testid="product-save"
-          >
-            {editing ? "Guardar" : "Crear"}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
-      {/* Category Dialog */}
-      <Dialog
-        open={catOpen}
-        onClose={() => setCatOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>Nueva Categoría</DialogTitle>
-        <DialogContent>
-          <Box
-            sx={{ display: "flex", flexDirection: "column", gap: 1.5, mt: 0.5 }}
-          >
-            <TextField
-              label="Nombre"
-              value={catName}
-              onChange={(e) => setCatName(e.target.value)}
-              fullWidth
-              size="small"
-              required
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <CategorySidebar
+              categories={categories}
+              counts={counts}
+              selected={filters.category}
+              loading={loading}
+              canManage={permissions.canManageCategories}
+              onSelect={(value: CategoryFilter) => setFilters((prev) => ({ ...prev, category: value }))}
+              onCreate={() => setCategoryDialog({ open: true, editing: null, forProduct: false })}
+              onEdit={(category) => setCategoryDialog({ open: true, editing: category, forProduct: false })}
+              onDelete={setCategoryToDelete}
             />
-            <TextField
-              label="Descripción"
-              value={catDesc}
-              onChange={(e) => setCatDesc(e.target.value)}
-              fullWidth
-              size="small"
-              multiline
-              rows={2}
+            <ProductTable
+              view={view}
+              products={visibleProducts}
+              permissions={permissions}
+              visibleColumns={visibleColumns}
+              errorMessage={loadError}
+              onRetry={() => void loadData()}
+              onClearFilters={() => setFilters(DEFAULT_FILTERS)}
+              onCreate={handleNewProduct}
+              onAdjust={(product) => openPanel(product, 'adjust')}
+              onHistory={(product) => openPanel(product, 'history')}
+              onEdit={handleEditProduct}
+              onToggleActive={(product) => void handleToggleActive(product)}
+              onDelete={setProductToDelete}
             />
           </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button onClick={() => setCatOpen(false)} color="inherit">
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleAddCategory}
-            disabled={!catName}
-          >
-            Crear
-          </Button>
-        </DialogActions>
-      </Dialog>
+          {filtersActive && view === 'rows' && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }} aria-live="polite">
+              {visibleProducts.length} productos mostrados
+            </Typography>
+          )}
+        </>
+      )}
+
+      {panel && user && (
+        <ProductSidePanel
+          key={`${panel.product.id}-${panel.section}`}
+          product={panel.product}
+          initialSection={panel.section}
+          canViewHistory={permissions.canViewHistory}
+          userId={user.id}
+          onClose={() => setPanel(null)}
+          onAdjusted={handleAdjusted}
+        />
+      )}
+
+      {permissions.canManageProducts && (
+        <ProductFormDialog
+          open={productDialogOpen}
+          editing={editing}
+          categories={categories}
+          defaultCategoryId={typeof filters.category === 'number' ? filters.category : null}
+          newCategoryId={newCategoryId}
+          onClose={() => setProductDialogOpen(false)}
+          onSaved={handleProductSaved}
+          onRequestNewCategory={() => setCategoryDialog({ open: true, editing: null, forProduct: true })}
+        />
+      )}
+
+      {permissions.canManageCategories && (
+        <CategoryFormDialog
+          open={categoryDialog.open}
+          editing={categoryDialog.editing}
+          onClose={() => setCategoryDialog({ open: false, editing: null, forProduct: false })}
+          onSaved={(category) => void handleCategorySaved(category)}
+        />
+      )}
 
       <ConfirmModal
-        open={confirmOpen}
-        onClose={handleCloseConfirm}
-        onConfirm={handleConfirmDelete}
-        title="Confirmar eliminación"
-        message="¿Estás seguro de querer eliminar este producto?"
+        open={productToDelete !== null}
+        onClose={() => setProductToDelete(null)}
+        onConfirm={() => void handleConfirmDeleteProduct()}
+        title="Eliminar producto"
+        message={`¿Eliminar "${productToDelete?.name ?? ''}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        confirmColor="error"
       />
+
+      <ConfirmModal
+        open={categoryToDelete !== null}
+        onClose={() => setCategoryToDelete(null)}
+        onConfirm={() => void handleConfirmDeleteCategory()}
+        title="Eliminar categoría"
+        message={
+          categoryToDelete
+            ? describeCategoryDeletion(categoryToDelete.name, productsInCategory(categoryToDelete.id))
+            : ''
+        }
+        confirmLabel="Eliminar"
+        confirmColor="error"
+      />
+
+      <Snackbar
+        open={notice !== ''}
+        autoHideDuration={8000}
+        onClose={() => setNotice('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setNotice('')} data-testid="products-notice">
+          {notice}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

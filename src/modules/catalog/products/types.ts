@@ -57,3 +57,35 @@ export interface UpdateProductDTO {
   active?: boolean;
   image?: ProductImageChange;
 }
+
+// Tipos locales del módulo unificado de Productos.
+export type StockStatus = 'normal' | 'low' | 'out';
+
+export type StockStatusFilter = StockStatus | 'all';
+
+// 'all' = todas las categorías; 'none' = "Sin categoría"; número = id de categoría.
+export type CategoryFilter = 'all' | 'none' | number;
+
+export interface ProductFilters {
+  category: CategoryFilter;
+  status: StockStatusFilter;
+  showInactive: boolean;
+}
+
+// Columnas de la tabla que se pueden mostrar u ocultar ("Producto" y "Acciones" son fijas).
+export type ProductColumnKey =
+  | 'barcode'
+  | 'category'
+  | 'unit'
+  | 'price'
+  | 'stock'
+  | 'min_stock'
+  | 'status';
+
+export interface ProductPermissions {
+  canViewList: boolean;
+  canAdjustStock: boolean;
+  canManageProducts: boolean;
+  canManageCategories: boolean;
+  canViewHistory: boolean;
+}

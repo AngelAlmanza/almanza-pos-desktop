@@ -1,0 +1,23 @@
+{
+  "stage": "code-generation",
+  "upstream_ids": ["FR1", "FR2", "FR3", "FR4", "FR5", "FR6", "FR7", "FR8", "FR9", "FR10", "NFR1", "NFR2", "NFR3", "NFR4", "NFR5", "NFR6", "NFR7"],
+  "coverage": [
+    { "id": "FR1", "status": "OK", "target": "src/core/layout/navItems.ts" },
+    { "id": "FR2", "status": "OK", "target": "src/modules/catalog/products/components/ProductTable.tsx" },
+    { "id": "FR3", "status": "OK", "target": "src/modules/catalog/products/components/ProductFormDialog.tsx" },
+    { "id": "FR4", "status": "OK", "target": "src/modules/catalog/products/pages/ProductsPage.tsx" },
+    { "id": "FR5", "status": "OK", "target": "src/modules/catalog/products/components/ProductSidePanel.tsx" },
+    { "id": "FR6", "status": "OK", "target": "src/modules/catalog/products/components/CategorySidebar.tsx" },
+    { "id": "FR7", "status": "OK", "target": "src/modules/catalog/products/components/StockHistoryTab.tsx" },
+    { "id": "FR8", "status": "OK", "target": "src/modules/catalog/products/components/StockSummaryCards.tsx" },
+    { "id": "FR9", "status": "OK", "target": "src/__tests__/modules/catalog/products/stockStatus.test.ts" },
+    { "id": "FR10", "status": "OK", "target": "src/modules/catalog/products/components/ProductSidePanel.tsx" },
+    { "id": "NFR1", "status": "OK", "target": "src/modules/catalog/products/utils/stockStatus.ts" },
+    { "id": "NFR2", "status": "OK", "target": "src/modules/catalog/products/pages/ProductsPage.tsx" },
+    { "id": "NFR3", "status": "OK", "target": "src/modules/catalog/products/components/AdjustmentTypePicker.tsx" },
+    { "id": "NFR4", "status": "OK", "target": "src/modules/catalog/products/utils/stockAdjustment.ts" },
+    { "id": "NFR5", "status": "OK", "target": "src/modules/catalog/products/utils/productPermissions.ts" },
+    { "id": "NFR6", "status": "OK", "target": "src/__tests__/core/layout/navItems.test.ts" },
+    { "id": "NFR7", "status": "OK", "target": "src/modules/catalog/products/utils/categoryDeletion.ts" }
+  ]
+}

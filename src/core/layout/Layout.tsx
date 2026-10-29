@@ -3,8 +3,6 @@ import {
   Assessment,
   Category,
   PersonSearch,
-  Inventory2,
-  Label,
   Logout,
   Menu as MenuIcon,
   People,
@@ -31,6 +29,7 @@ import {
 import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from '@modules/auth/context/AuthContext';
+import { getVisibleNavItems, type NavIconKey } from '@core/layout/navItems';
 
 const DRAWER_WIDTH = 252;
 const APPBAR_HEIGHT = 56;
@@ -47,50 +46,16 @@ const SELECTED_ICON = "#4db6a9";
 const SESSION_BG = "rgba(45, 106, 79, 0.25)";
 const SESSION_BORDER = "rgba(45, 106, 79, 0.45)";
 
-interface NavItem {
-  label: string;
-  path: string;
-  icon: React.ReactNode;
-  adminOnly?: boolean;
-}
-
-const navItems: NavItem[] = [
-  { label: "Punto de Venta", path: "/pos", icon: <PointOfSale /> },
-  { label: "Ventas", path: "/sales", icon: <ShoppingCart /> },
-  { label: "Clientes", path: "/customers", icon: <PersonSearch /> },
-  {
-    label: "Productos",
-    path: "/products",
-    icon: <Category />,
-    adminOnly: true,
-  },
-  {
-    label: "Categorías",
-    path: "/categories",
-    icon: <Label />,
-    adminOnly: true,
-  },
-  {
-    label: "Inventario",
-    path: "/inventory",
-    icon: <Inventory2 />,
-    adminOnly: true,
-  },
-  { label: "Usuarios", path: "/users", icon: <People />, adminOnly: true },
-  { label: "Cortes de Caja", path: "/cash-register", icon: <AccountBalance /> },
-  {
-    label: "Reportes",
-    path: "/reports",
-    icon: <Assessment />,
-    adminOnly: true,
-  },
-  {
-    label: "Configuración",
-    path: "/settings",
-    icon: <Settings />,
-    adminOnly: true,
-  },
-];
+const NAV_ICONS: Record<NavIconKey, React.ReactNode> = {
+  pos: <PointOfSale />,
+  sales: <ShoppingCart />,
+  customers: <PersonSearch />,
+  products: <Category />,
+  users: <People />,
+  cashRegister: <AccountBalance />,
+  reports: <Assessment />,
+  settings: <Settings />,
+};
 
 export function Layout() {
   const { user, isAdmin, logout, cashRegisterSession, setCashRegisterSession } =
@@ -118,9 +83,7 @@ export function Layout() {
     loadOpenSession();
   }, [user]);
 
-  const filteredNavItems = navItems.filter(
-    (item) => !item.adminOnly || isAdmin,
-  );
+  const filteredNavItems = getVisibleNavItems(isAdmin);
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -178,7 +141,7 @@ export function Layout() {
                   },
                 }}
               >
-                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemIcon>{NAV_ICONS[item.iconKey]}</ListItemIcon>
                 <ListItemText
                   primary={item.label}
                   slotProps={{

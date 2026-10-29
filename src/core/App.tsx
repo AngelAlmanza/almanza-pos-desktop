@@ -1,14 +1,14 @@
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment';
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { Layout } from '@core/layout/Layout';
+import { getLegacyRedirect } from '@core/layout/navItems';
+import { useAuth } from '@modules/auth/context/AuthContext';
 import { AdminGuard, AuthGuard, GuestGuard } from '@core/guards/AuthGuard';
 import { AuthProvider } from '@modules/auth/context/AuthContext';
 import { LoginPage } from '@modules/auth/pages/LoginPage';
 import { CashRegisterPage } from '@modules/cash-register/pages/CashRegisterPage';
-import { CategoriesPage } from '@modules/catalog/categories/pages/CategoriesPage';
-import { InventoryPage } from '@modules/catalog/inventory/pages/InventoryPage';
 import { ProductsPage } from '@modules/catalog/products/pages/ProductsPage';
 import { CustomersPage } from '@modules/customers/pages/CustomersPage';
 import { PosProvider } from '@modules/pos/context/PosProvider';
@@ -20,6 +20,13 @@ import { UsersPage } from '@modules/users/pages/UsersPage';
 import { theme } from '@core/theme';
 // Import moment lang es
 import 'moment/dist/locale/es';
+
+// Las pantallas antiguas de Categorías e Inventario ahora viven en Productos.
+function LegacyRedirect() {
+  const { pathname } = useLocation();
+  const { isAdmin } = useAuth();
+  return <Navigate to={getLegacyRedirect(pathname, isAdmin) ?? '/products'} replace />;
+}
 
 function App() {
   return (
@@ -44,12 +51,12 @@ function App() {
                   <Route path="/sales" element={<SalesPage />} />
                   <Route path="/cash-register" element={<CashRegisterPage />} />
                   <Route path="/customers" element={<CustomersPage />} />
+                  <Route path="/products" element={<ProductsPage />} />
+                  <Route path="/categories" element={<LegacyRedirect />} />
+                  <Route path="/inventory" element={<LegacyRedirect />} />
 
                   {/* Admin-only routes */}
                   <Route element={<AdminGuard />}>
-                    <Route path="/products" element={<ProductsPage />} />
-                    <Route path="/categories" element={<CategoriesPage />} />
-                    <Route path="/inventory" element={<InventoryPage />} />
                     <Route path="/users" element={<UsersPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route path="/settings" element={<SettingsPage />} />

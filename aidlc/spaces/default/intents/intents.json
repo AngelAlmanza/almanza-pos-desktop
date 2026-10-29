@@ -6,5 +6,13 @@
     "scope": "refactor",
     "status": "complete",
     "request": "02070257"
+  },
+  {
+    "uuid": "01a18418-bcde-74f4-aaea-7d3d80e56501",
+    "slug": "unified-products-module",
+    "dirName": "261028-unified-products-module",
+    "scope": "bugfix",
+    "status": "complete",
+    "request": "09b3b26f"
   }
 ]
